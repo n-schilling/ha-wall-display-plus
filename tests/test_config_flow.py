@@ -155,15 +155,86 @@ async def test_zeroconf_new_display(hass: HomeAssistant, display: FakeDisplay) -
 async def test_zeroconf_updates_known_display(
     hass: HomeAssistant, display: FakeDisplay, config_entry: MockConfigEntry
 ) -> None:
-    """A known display with a new address only updates the address."""
+    """A known display at a new address is taken over after checking its MAC."""
     config_entry.add_to_hass(hass)
-    display.reachable = False  # no connection needed: the MAC is in the name
     result = await hass.config_entries.flow.async_init(
         DOMAIN, context={"source": config_entries.SOURCE_ZEROCONF}, data=_zeroconf("192.0.2.77")
     )
     assert result["type"] is FlowResultType.ABORT
     assert result["reason"] == "already_configured"
     assert config_entry.data[CONF_HOST] == "192.0.2.77"
+
+
+async def test_zeroconf_spoofed_name_is_ignored(
+    hass: HomeAssistant, display: FakeDisplay, config_entry: MockConfigEntry
+) -> None:
+    """An announcement with our display's name from a silent host changes nothing."""
+    config_entry.add_to_hass(hass)
+    display.reachable = False
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": config_entries.SOURCE_ZEROCONF}, data=_zeroconf("192.0.2.66")
+    )
+    assert result["reason"] == "already_configured"
+    assert config_entry.data[CONF_HOST] == HOST
+
+
+async def test_zeroconf_other_device_with_our_name_is_ignored(
+    hass: HomeAssistant, display: FakeDisplay, config_entry: MockConfigEntry
+) -> None:
+    """A device that reports another MAC does not get our display's address."""
+    config_entry.add_to_hass(hass)
+    with patch("custom_components.wall_display_plus.config_flow.WallDisplayClient") as factory:
+        other = FakeDisplay()
+        other.get_device_info = _other_mac(other.get_device_info)  # type: ignore[method-assign]
+        factory.return_value = other
+        result = await hass.config_entries.flow.async_init(
+            DOMAIN,
+            context={"source": config_entries.SOURCE_ZEROCONF},
+            data=_zeroconf("192.0.2.66"),
+        )
+    assert result["reason"] == "already_configured"
+    assert config_entry.data[CONF_HOST] == HOST
+
+
+async def test_zeroconf_never_moves_a_display_with_password(
+    hass: HomeAssistant, display: FakeDisplay
+) -> None:
+    """With a password, discovery never changes the address."""
+    entry = MockConfigEntry(
+        domain=DOMAIN, unique_id=MAC, data={CONF_HOST: HOST, CONF_PASSWORD: "secret"}
+    )
+    entry.add_to_hass(hass)
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": config_entries.SOURCE_ZEROCONF}, data=_zeroconf("192.0.2.77")
+    )
+    assert result["reason"] == "already_configured"
+    assert entry.data[CONF_HOST] == HOST
+
+
+async def test_zeroconf_same_address(
+    hass: HomeAssistant, display: FakeDisplay, config_entry: MockConfigEntry
+) -> None:
+    """A repeated announcement at the known address needs no connection."""
+    config_entry.add_to_hass(hass)
+    display.reachable = False
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": config_entries.SOURCE_ZEROCONF}, data=_zeroconf()
+    )
+    assert result["reason"] == "already_configured"
+
+
+async def test_zeroconf_known_display_without_mac_in_name(
+    hass: HomeAssistant, display: FakeDisplay, config_entry: MockConfigEntry
+) -> None:
+    """Without the MAC in the name, the device's own MAC identifies it."""
+    config_entry.add_to_hass(hass)
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN,
+        context={"source": config_entries.SOURCE_ZEROCONF},
+        data=_zeroconf("192.0.2.78", name="Kitchen Display"),
+    )
+    assert result["reason"] == "already_configured"
+    assert config_entry.data[CONF_HOST] == "192.0.2.78"
 
 
 async def test_zeroconf_name_without_mac(hass: HomeAssistant, display: FakeDisplay) -> None:

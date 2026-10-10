@@ -119,9 +119,11 @@ class WallDisplayConfigFlow(ConfigFlow, domain=DOMAIN):
             return self.async_abort(reason="ipv6_not_supported")
         host = discovery_info.host
         if match := ZEROCONF_NAME.match(discovery_info.name):
-            # Known display with a new address: take the address, no connection needed
             await self.async_set_unique_id(match.group(1).lower())
-            self._abort_if_unique_id_configured(updates={CONF_HOST: host})
+            if entry := self.hass.config_entries.async_entry_for_domain_unique_id(
+                DOMAIN, match.group(1).lower()
+            ):
+                return await self._async_known_display_moved(entry, host)
         name = discovery_info.name.split(".")[0]
         try:
             device, name = await self._async_validate(host, None)
@@ -133,11 +135,37 @@ class WallDisplayConfigFlow(ConfigFlow, domain=DOMAIN):
             pass  # the password is asked for in the next step
         else:
             await self.async_set_unique_id(device.mac)
-            self._abort_if_unique_id_configured(updates={CONF_HOST: host})
+            if entry := self.hass.config_entries.async_entry_for_domain_unique_id(
+                DOMAIN, device.mac
+            ):
+                return await self._async_known_display_moved(entry, host)
         self._discovered_host = host
         self._discovered_name = name
         self.context["title_placeholders"] = {"name": name}
         return await self.async_step_zeroconf_confirm()
+
+    async def _async_known_display_moved(
+        self, entry: WallDisplayConfigEntry, host: str
+    ) -> ConfigFlowResult:
+        """Take a new address of a configured display only when it is safe.
+
+        Anyone on the network can announce a display's name. Without a password
+        the address is taken over only if the device at the new address reports
+        the same MAC. With a password the address is never changed by discovery:
+        the digest login would otherwise go to an unchecked device. The user
+        changes it with Reconfigure instead.
+        """
+        if entry.data[CONF_HOST] == host or entry.data.get(CONF_PASSWORD):
+            return self.async_abort(reason="already_configured")
+        client = WallDisplayClient(async_get_clientsession(self.hass), host, None)
+        try:
+            device = await client.get_device_info()
+        except WallDisplayError:
+            return self.async_abort(reason="already_configured")
+        if device.mac != entry.unique_id or not device.is_wall_display:
+            return self.async_abort(reason="already_configured")
+        self._abort_if_unique_id_configured(updates={CONF_HOST: host})
+        return self.async_abort(reason="already_configured")  # pragma: no cover
 
     async def async_step_zeroconf_confirm(
         self, user_input: dict[str, Any] | None = None

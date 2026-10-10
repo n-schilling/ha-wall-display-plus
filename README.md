@@ -42,7 +42,7 @@ Requirements: Home Assistant 2026.10 or newer, and a text-to-speech engine for a
 
 | Parameter | Description |
 |---|---|
-| Host | IP address or host name of the display. Discovered displays fill it in themselves, and a new address is picked up automatically. |
+| Host | IP address or host name of the display. Discovered displays fill it in themselves. A new address is picked up automatically only for displays without a password, and only if the device at the new address reports the same MAC; with a password, use **Reconfigure**. |
 | Password | Only if a password is set on the display (user `admin`, digest authentication). Leave empty otherwise. |
 
 The address and the password can be changed later with **Reconfigure**. If the display rejects the password, Home Assistant asks for the new one.
@@ -135,7 +135,7 @@ actions:
 - **What can be played:** text to speech, media sources and absolute `http(s)` URLs that return audio, up to 20 MB. Paths of your Home Assistant instance such as `/api/...` are refused: they would be fetched with a signature, so anyone allowed to call `play_media` could copy protected data into the display's media library, which can be read without a password.
 - **The motion switch writes to the display only when the value changes.** Every write makes the official integration reload, and its entities are unavailable for a moment. Do not change the switch from an automation that triggers on those entities becoming available again: that is a loop.
 - **Undocumented interface:** the media upload uses the calls of the display's own web interface, which are not in the published API documentation. A firmware update can change them; the integration then shows a repair issue.
-- Discovery works over IPv4 only.
+- Discovery works over IPv4 only. It never moves a display with a password to a new address: anyone on the network can announce a display's name, and the login would go to that device. Use **Reconfigure** after an address change.
 
 ## Troubleshooting
 
@@ -143,7 +143,7 @@ actions:
 |---|---|
 | Nothing to hear | Check the volume of the display (official integration's media player) and that a Bluetooth speaker is not connected instead. |
 | Repair issue "the firmware does not support the speaker" | The firmware changed the interface. [Open an issue](https://github.com/n-schilling/ha-wall-display-plus/issues/new/choose) with model and firmware. The issue disappears once a clip plays again. |
-| Entities unavailable | The display is off, asleep in a network sense or has a new address. A new address is picked up by discovery; otherwise use **Reconfigure**. |
+| Entities unavailable | The display is off or has a new address. Without a password, discovery picks up the new address; with a password, use **Reconfigure**. |
 | "Unsupported media" or "not audio" | Only text to speech, media sources and http(s) URLs with audio can be played. |
 | Old voice after changing it | Press **Clear speaker cache**. |
 | Something else | Download the diagnostics from the integration's page (no password inside) and attach them to an issue. |
