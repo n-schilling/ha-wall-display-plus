@@ -25,6 +25,11 @@ MAC = "02a1b2c3d4e5"
 HOST = "192.0.2.10"
 
 
+def own_file(entry: MockConfigEntry, name: str) -> str:
+    """Return a file name that belongs to the entry (our prefix and its tag)."""
+    return f"homeassistant_{entry.runtime_data.speaker.tag}_{name}"
+
+
 class FakeDisplay:
     """Behaves like the display's RPC interface, as far as the integration uses it."""
 
@@ -53,9 +58,7 @@ class FakeDisplay:
         return next((i for i in self.library.values() if i.filename == filename), None)
 
     def clips(self) -> list[MediaItem]:
-        return [
-            i for i in self.library.values() if i.filename.startswith(("homeassistant_", "wdp_"))
-        ]
+        return [i for i in self.library.values() if i.filename.startswith("homeassistant_")]
 
     def renumber(self, filename: str) -> int:
         """Give a file a new id, as after a factory reset and new upload."""

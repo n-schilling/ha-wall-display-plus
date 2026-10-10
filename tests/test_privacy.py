@@ -21,12 +21,11 @@ from homeassistant.const import ATTR_ENTITY_ID
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import entity_registry as er
-from homeassistant.util import dt as dt_util
 
 from custom_components.wall_display_plus.diagnostics import async_get_config_entry_diagnostics
 from custom_components.wall_display_plus.speaker import cache_key, clip_filename
 
-from .conftest import HOST, MAC, FakeDisplay
+from .conftest import HOST, MAC, FakeDisplay, own_file
 
 TTS = "media-source://tts/tts.piper?message=Die+Waschmaschine+ist+fertig&language=de_DE"
 
@@ -149,37 +148,6 @@ async def test_clear_cache_creates_new_secret(
     assert speaker.key_for(TTS) != key_before
 
 
-async def test_old_store_without_secret_is_migrated(
-    hass: HomeAssistant,
-    display: FakeDisplay,
-    config_entry: MockConfigEntry,
-    hass_storage: dict[str, Any],
-    tts_audio,
-) -> None:
-    """Clips cached under the old unkeyed names are removed by the next cleanup."""
-    key = f"wall_display_plus.{config_entry.entry_id}.cache"
-    hass_storage[key] = {
-        "version": 1,
-        "key": key,
-        "data": {
-            "entries": {
-                "oldkey": {
-                    "filename": "wdp_oldunkeyedname.mp3",
-                    "last_used": dt_util.utcnow().isoformat(),
-                }
-            }
-        },
-    }
-    await display.upload("wdp_oldunkeyedname.mp3", "ALERT", b"x")
-    config_entry.add_to_hass(hass)
-    assert await hass.config_entries.async_setup(config_entry.entry_id)
-    await hass.async_block_till_done(wait_background_tasks=True)
-    assert config_entry.runtime_data.speaker.entries == {}
-    assert display.by_name("wdp_oldunkeyedname.mp3") is None  # startup cleanup
-    await config_entry.runtime_data.speaker.async_flush()
-    assert "secret" in hass_storage[key]["data"]
-
-
 # -- F3: no URL query in error messages --
 
 
@@ -238,7 +206,7 @@ async def test_removal_deletes_our_clips(
 ) -> None:
     """Removing the integration deletes our clips and nothing else."""
     await _play(hass, TTS)
-    await display.upload("wdp_orphan.mp3", "ALERT", b"x")
+    await display.upload(own_file(setup_entry, "orphan.mp3"), "ALERT", b"x")
     await hass.config_entries.async_remove(setup_entry.entry_id)
     await hass.async_block_till_done()
     assert display.clips() == []

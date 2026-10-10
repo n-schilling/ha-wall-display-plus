@@ -32,8 +32,6 @@ CLEANUP_INTERVAL: Final = timedelta(hours=24)
 CLIP_PREFIX: Final = "homeassistant_"
 TAG_LENGTH: Final = 6
 KEY_LENGTH: Final = 24
-# Clips of versions before 0.1.0 were named "wdp_<key>"; they are cleaned up.
-LEGACY_CLIP_PREFIX: Final = "wdp_"
 
 # Firmware 2.8.2 stores file names up to 250 bytes (UTF-8). A longer name is
 # accepted without error but the file never appears in the library.

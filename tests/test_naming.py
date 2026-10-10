@@ -65,9 +65,8 @@ def test_longest_name_is_far_below_the_limit() -> None:
 
 
 def test_owns() -> None:
-    """Only our tag, and old names of earlier versions, are ours."""
+    """Only files with our prefix and tag are ours."""
     assert owns("homeassistant_abcdef_x.mp3", "abcdef")
-    assert owns("wdp_x.mp3", "abcdef")
     assert not owns(OTHER_INSTANCE, "abcdef")
     assert not owns("homeassistant_abcdef_x.mp3", None)
     assert not owns("song.mp3", "abcdef")
@@ -120,12 +119,3 @@ async def test_tag_is_stable(
     await setup_entry.runtime_data.speaker.async_flush()
     key = f"wall_display_plus.{setup_entry.entry_id}.cache"
     assert hass_storage[key]["data"]["tag"] == tag
-
-
-async def test_legacy_clips_are_cleaned_up(
-    hass: HomeAssistant, display: FakeDisplay, setup_entry: MockConfigEntry
-) -> None:
-    """Clips named by earlier versions disappear with the next cleanup."""
-    await display.upload("wdp_0123456789abcdef01234567.mp3", "ALERT", b"x")
-    assert await setup_entry.runtime_data.speaker.async_cleanup() == 1
-    assert display.clips() == []

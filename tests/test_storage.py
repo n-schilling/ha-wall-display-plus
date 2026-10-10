@@ -22,7 +22,7 @@ from homeassistant.util import dt as dt_util
 
 from custom_components.wall_display_plus.const import FREE_SPACE_RESERVE
 
-from .conftest import MAC, FakeDisplay
+from .conftest import MAC, FakeDisplay, own_file
 
 AUDIO = b"ID3fake-audio"  # 13 bytes per clip
 
@@ -98,9 +98,9 @@ async def test_orphans_are_evicted_before_cached_clips(
     """Our clips the cache does not know are removed first."""
     setup_entry.runtime_data.speaker.cache_max_bytes = 2 * len(AUDIO)
     await _play(hass, _tts("a"))
-    await display.upload("wdp_orphan.mp3", "ALERT", AUDIO)
+    await display.upload(own_file(setup_entry, "orphan.mp3"), "ALERT", AUDIO)
     await _play(hass, _tts("b"))
-    assert display.by_name("wdp_orphan.mp3") is None
+    assert display.by_name(own_file(setup_entry, "orphan.mp3")) is None
     assert len(display.clips()) == 2
 
 

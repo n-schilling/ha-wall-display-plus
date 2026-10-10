@@ -19,7 +19,7 @@ from homeassistant.helpers import device_registry as dr, entity_registry as er
 
 from custom_components.wall_display_plus.diagnostics import async_get_config_entry_diagnostics
 
-from .conftest import MAC, FakeDisplay
+from .conftest import MAC, FakeDisplay, own_file
 
 
 def _entity_id(hass: HomeAssistant, domain: str, key: str) -> str:
@@ -109,10 +109,10 @@ async def test_clear_cache_button(
     hass: HomeAssistant, display: FakeDisplay, setup_entry: MockConfigEntry
 ) -> None:
     """The button deletes our clips and nothing else."""
-    await display.upload("wdp_a.mp3", "ALERT", b"x")
-    await display.upload("wdp_b.mp3", "ALERT", b"x")
+    await display.upload(own_file(setup_entry, "a.mp3"), "ALERT", b"x")
+    await display.upload(own_file(setup_entry, "b.mp3"), "ALERT", b"x")
     setup_entry.runtime_data.speaker.entries["k"] = {
-        "filename": "wdp_a.mp3",
+        "filename": own_file(setup_entry, "a.mp3"),
         "last_used": "2026-10-10T00:00:00+00:00",
     }
     await hass.services.async_call(

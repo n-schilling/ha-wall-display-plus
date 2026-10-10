@@ -37,7 +37,6 @@ from .const import (
     DOMAIN,
     FREE_SPACE_RESERVE,
     KEY_LENGTH,
-    LEGACY_CLIP_PREFIX,
     MAX_FILENAME_BYTES,
     MEDIA_TYPE_ALERT,
     PLAYBACK_MARGIN,
@@ -80,8 +79,6 @@ def clip_filename(tag: str, key: str, extension: str) -> str:
 
 def owns(filename: str, tag: str | None) -> bool:
     """Return whether a file on the display belongs to this config entry."""
-    if filename.startswith(LEGACY_CLIP_PREFIX):
-        return True
     return tag is not None and filename.startswith(f"{CLIP_PREFIX}{tag}_")
 
 
@@ -122,19 +119,13 @@ class Speaker:
         return cache_key(self._secret, source)
 
     async def async_load(self) -> None:
-        """Load the cache and its secret from storage."""
-        data = await self._store.async_load() or {}
-        if tag := data.get("tag"):
-            self.tag = tag
-        if (secret := data.get("secret")) and tag:
-            self._secret = bytes.fromhex(secret)
-            self._entries = dict(data.get("entries", {}))
-        else:
-            # A store without a secret (or none at all): start with a new
-            # secret. Entries keyed the old way are dropped, so the next
-            # cleanup removes their files from the display.
-            self._entries = {}
+        """Load tag, secret and cache; on first use keep the new ones."""
+        if (data := await self._store.async_load()) is None:
             self._save()
+            return
+        self.tag = data["tag"]
+        self._secret = bytes.fromhex(data["secret"])
+        self._entries = dict(data["entries"])
 
     def _data(self) -> dict[str, Any]:
         return {"tag": self.tag, "secret": self._secret.hex(), "entries": self._entries}

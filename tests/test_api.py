@@ -236,16 +236,18 @@ async def test_upload_in_chunks(server, session) -> None:
     twin, host = server
     data = bytes(range(256)) * 4
     with patch("custom_components.wall_display_plus.api.UPLOAD_CHUNK_SIZE", 500):
-        await WallDisplayClient(session, host, None).upload("wdp_x.mp3", "ALERT", data)
+        await WallDisplayClient(session, host, None).upload(
+            "homeassistant_abcdef_x.mp3", "ALERT", data
+        )
     puts = [c["params"] for c in twin.calls if c["method"] == "Media.PutMedia"]
     assert [(p["append"], p["last"]) for p in puts] == [(False, False), (True, False), (True, True)]
-    assert all(p["filename"] == "wdp_x.mp3" and p["type"] == "ALERT" for p in puts)
+    assert all(p["filename"] == "homeassistant_abcdef_x.mp3" and p["type"] == "ALERT" for p in puts)
     assert base64.b64decode("".join(p["data"] for p in puts)) == data
     assert twin.calls[-1]["method"] == "Media.Reload"
 
 
 async def test_upload_empty(server, session) -> None:
     twin, host = server
-    await WallDisplayClient(session, host, None).upload("wdp_e.mp3", "ALERT", b"")
+    await WallDisplayClient(session, host, None).upload("homeassistant_abcdef_e.mp3", "ALERT", b"")
     puts = [c["params"] for c in twin.calls if c["method"] == "Media.PutMedia"]
     assert len(puts) == 1 and puts[0]["last"] is True and puts[0]["data"] == ""

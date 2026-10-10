@@ -39,7 +39,7 @@ from custom_components.wall_display_plus.api import (
 from custom_components.wall_display_plus.diagnostics import async_get_config_entry_diagnostics
 from custom_components.wall_display_plus.speaker import clip_filename
 
-from .conftest import MAC, FakeDisplay
+from .conftest import MAC, FakeDisplay, own_file
 
 TTS = "media-source://tts/tts.piper?message=Hallo&language=de_DE"
 
@@ -146,10 +146,10 @@ async def test_daily_cleanup_deletes_orphans(
     hass: HomeAssistant, display: FakeDisplay, setup_entry: MockConfigEntry
 ) -> None:
     """The daily cleanup removes clips nobody knows."""
-    await display.upload("wdp_orphan.mp3", "ALERT", b"x")
+    await display.upload(own_file(setup_entry, "orphan.mp3"), "ALERT", b"x")
     async_fire_time_changed(hass, dt_util.utcnow() + timedelta(hours=25))
     await hass.async_block_till_done()
-    assert display.by_name("wdp_orphan.mp3") is None
+    assert display.by_name(own_file(setup_entry, "orphan.mp3")) is None
 
 
 async def test_remove_entry_deletes_store(
@@ -420,7 +420,7 @@ async def test_cleanup_skips_files_that_vanished(
     hass: HomeAssistant, display: FakeDisplay, setup_entry: MockConfigEntry
 ) -> None:
     """A file deleted meanwhile is not counted and not an error."""
-    await display.upload("wdp_orphan.mp3", "ALERT", b"x")
+    await display.upload(own_file(setup_entry, "orphan.mp3"), "ALERT", b"x")
     _fail(display, "delete_media", WallDisplayError("gone"))
     assert await setup_entry.runtime_data.speaker.async_cleanup() == 0
 
@@ -498,11 +498,13 @@ async def test_stored_cache_is_loaded(
         "data": {
             "tag": "abcdef",
             "secret": "00" * 32,
-            "entries": {"k": {"filename": "wdp_k.mp3", "last_used": "2026-10-01T00:00:00"}},
+            "entries": {
+                "k": {"filename": "homeassistant_abcdef_k.mp3", "last_used": "2026-10-01T00:00:00"}
+            },
         },
     }
     config_entry.add_to_hass(hass)
     assert await hass.config_entries.async_setup(config_entry.entry_id)
     assert config_entry.runtime_data.speaker.entries == {
-        "k": {"filename": "wdp_k.mp3", "last_used": "2026-10-01T00:00:00"}
+        "k": {"filename": "homeassistant_abcdef_k.mp3", "last_used": "2026-10-01T00:00:00"}
     }

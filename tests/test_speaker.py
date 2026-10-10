@@ -21,7 +21,7 @@ from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import entity_registry as er
 from homeassistant.util import dt as dt_util
 
-from .conftest import MAC, FakeDisplay
+from .conftest import MAC, FakeDisplay, own_file
 
 TTS_HELLO = "media-source://tts/tts.piper?message=Hallo&language=de_DE&cache=true"
 TTS_HELLO_NOCACHE_FLAG = "media-source://tts/tts.piper?message=Hallo&language=de_DE&cache=false"
@@ -132,7 +132,7 @@ async def test_cache_false_deletes_after_playing(
 async def test_expired_and_orphaned_clips_are_deleted(
     hass: HomeAssistant, display: FakeDisplay, setup_entry: MockConfigEntry, tts_audio
 ) -> None:
-    """Cleanup removes clips unused for cache_days and unknown wdp_ files only."""
+    """Cleanup removes clips unused for cache_days and our unknown files only."""
     await _play(hass, TTS_HELLO)
     await _play(hass, TTS_OTHER)
     speaker = setup_entry.runtime_data.speaker
@@ -142,13 +142,13 @@ async def test_expired_and_orphaned_clips_are_deleted(
         if display.by_name(entry["filename"]).id == display.played[0]
     )
     speaker.entries[old_key]["last_used"] = (dt_util.utcnow() - timedelta(days=91)).isoformat()
-    await display.upload("wdp_orphan.mp3", "ALERT", b"x")
+    await display.upload(own_file(setup_entry, "orphan.mp3"), "ALERT", b"x")
 
     deleted = await speaker.async_cleanup()
 
     assert deleted == 2
     names = {item.filename for item in display.library.values()}
-    assert "wdp_orphan.mp3" not in names
+    assert own_file(setup_entry, "orphan.mp3") not in names
     assert {"digital_alarm.mp3", "song.mp3"} <= names  # foreign files untouched
     assert len(display.clips()) == 1
     assert old_key not in speaker.entries
@@ -158,11 +158,11 @@ async def test_cleanup_runs_after_clip_ended(
     hass: HomeAssistant, display: FakeDisplay, setup_entry: MockConfigEntry, tts_audio
 ) -> None:
     """After a clip, orphans are cleaned up without waiting for the daily run."""
-    await display.upload("wdp_orphan.mp3", "ALERT", b"x")
+    await display.upload(own_file(setup_entry, "orphan.mp3"), "ALERT", b"x")
     await _play(hass, TTS_HELLO)
     async_fire_time_changed(hass, dt_util.utcnow() + timedelta(seconds=5))
     await hass.async_block_till_done()
-    assert display.by_name("wdp_orphan.mp3") is None
+    assert display.by_name(own_file(setup_entry, "orphan.mp3")) is None
     assert len(display.clips()) == 1
 
 
