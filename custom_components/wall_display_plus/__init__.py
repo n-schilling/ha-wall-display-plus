@@ -8,7 +8,7 @@ import logging
 from typing import Any
 
 from homeassistant.const import CONF_HOST, CONF_PASSWORD, Platform
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import ConfigEntryNotReady
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.event import async_track_time_interval
@@ -74,6 +74,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: WallDisplayConfigEntry) 
 
     coordinator = WallDisplayCoordinator(hass, entry, client, speaker)
     await coordinator.async_config_entry_first_refresh()
+
+    @callback
+    def _library_changed() -> None:
+        entry.async_create_background_task(
+            hass, coordinator.async_request_refresh(), "wall_display_plus refresh"
+        )
+
+    speaker.on_library_change = _library_changed
 
     entry.runtime_data = RuntimeData(
         client=client, device=device, coordinator=coordinator, speaker=speaker

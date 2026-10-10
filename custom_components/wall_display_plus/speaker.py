@@ -18,6 +18,7 @@ clip larger than the whole cache is played once and not kept.
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 import hashlib
@@ -115,6 +116,8 @@ class Speaker:
         self.plays = 0
         self.cache_hits = 0
         self.last_delay: float | None = None
+        # Called whenever files of this integration were added or deleted
+        self.on_library_change: Callable[[], None] | None = None
 
     @property
     def entries(self) -> dict[str, dict[str, str]]:
@@ -207,6 +210,7 @@ class Speaker:
         else:
             filename = clip_filename(self.tag, audio.key, audio.extension)
         await self._client.upload(filename, MEDIA_TYPE_ALERT, audio.data)
+        self._library_changed()
         item = await self._client.find_media(filename)
         if item is None:
             raise WallDisplayError(f"{filename} is not in the media library after the upload")
@@ -295,6 +299,12 @@ class Speaker:
             await self._client.delete_media(media_id)
         except WallDisplayError as err:
             _LOGGER.debug("Could not delete clip %s: %s", media_id, err)
+        else:
+            self._library_changed()
+
+    def _library_changed(self) -> None:
+        if self.on_library_change is not None:
+            self.on_library_change()
 
     async def async_cleanup(self) -> int:
         """Delete clips not played for cache_days, and our clips nobody knows.
@@ -341,6 +351,7 @@ class Speaker:
         except WallDisplayError as err:
             _LOGGER.debug("Could not delete %s: %s", item.filename, err)
             return 0
+        self._library_changed()
         return 1
 
 

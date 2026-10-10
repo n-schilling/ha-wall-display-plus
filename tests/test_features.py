@@ -34,6 +34,7 @@ from homeassistant.helpers import entity_registry as er
 from homeassistant.util import dt as dt_util
 
 from custom_components.wall_display_plus.api import WallDisplayError
+from custom_components.wall_display_plus.const import UPDATE_INTERVAL
 
 from .conftest import MAC, FakeDisplay
 
@@ -76,8 +77,12 @@ async def _play(hass: HomeAssistant, extra: dict[str, Any] | None = None) -> Non
     await hass.services.async_call(MP_DOMAIN, SERVICE_PLAY_MEDIA, data, blocking=True)
 
 
-async def _poll(hass: HomeAssistant, seconds: int = 31) -> None:
-    async_fire_time_changed(hass, dt_util.utcnow() + timedelta(seconds=seconds))
+POLL_SECONDS = int(UPDATE_INTERVAL.total_seconds()) + 1
+
+
+async def _poll(hass: HomeAssistant, times: int = 1) -> None:
+    """Let the regular poll run (times rounds)."""
+    async_fire_time_changed(hass, dt_util.utcnow() + timedelta(seconds=POLL_SECONDS * times))
     await hass.async_block_till_done()
 
 
@@ -136,16 +141,20 @@ async def test_speaker_sensors(
 
 
 async def test_app_started_is_stable_and_shows_restarts(
-    hass: HomeAssistant, display: FakeDisplay, setup_entry: MockConfigEntry
+    hass: HomeAssistant, display: FakeDisplay, setup_entry: MockConfigEntry, freezer
 ) -> None:
     """The app start does not jitter with the uptime, but moves on an app restart."""
     entity_id = _eid(hass, "sensor", "app_started")
     first = hass.states.get(entity_id).state
-    display.app_uptime += 31  # time passes, with a second of jitter
-    await _poll(hass)
+    freezer.tick(timedelta(seconds=POLL_SECONDS))
+    display.app_uptime += POLL_SECONDS + 1  # time passes, with a second of jitter
+    async_fire_time_changed(hass)
+    await hass.async_block_till_done()
     assert hass.states.get(entity_id).state == first
+    freezer.tick(timedelta(seconds=POLL_SECONDS))
     display.app_uptime = 5  # the app restarted
-    await _poll(hass, 62)
+    async_fire_time_changed(hass)
+    await hass.async_block_till_done()
     assert hass.states.get(entity_id).state != first
 
 
@@ -402,3 +411,57 @@ async def test_missing_screen_values(
         blocking=True,
     )
     assert display.ui_config["screen_saver"] == {"enable": True}
+
+
+# -- polling --
+
+
+async def test_polls_every_ten_minutes(
+    hass: HomeAssistant, display: FakeDisplay, setup_entry: MockConfigEntry
+) -> None:
+    """The display is weak; it is polled rarely."""
+    assert setup_entry.runtime_data.coordinator.update_interval == timedelta(minutes=10)
+
+
+async def test_upload_refreshes_at_once(
+    hass: HomeAssistant, display: FakeDisplay, setup_entry: MockConfigEntry, tts_audio
+) -> None:
+    """After an upload the cache sensors are right without waiting for the poll."""
+    entity_id = _eid(hass, "sensor", "cache_clips")
+    assert hass.states.get(entity_id).state == "0"
+    await _play(hass)
+    await hass.async_block_till_done()
+    assert hass.states.get(entity_id).state == "1"
+
+
+async def test_cache_hit_does_not_poll(
+    hass: HomeAssistant, display: FakeDisplay, setup_entry: MockConfigEntry, tts_audio
+) -> None:
+    """Replaying a cached clip changes nothing in the library and asks the display nothing more."""
+    await _play(hass)
+    await hass.async_block_till_done()
+    calls = 0
+    original = display.get_device_info
+
+    async def counting() -> Any:
+        nonlocal calls
+        calls += 1
+        return await original()
+
+    display.get_device_info = counting  # type: ignore[method-assign]
+    async_fire_time_changed(hass, dt_util.utcnow() + timedelta(seconds=11))  # past the cooldown
+    await hass.async_block_till_done()
+    await _play(hass)
+    await hass.async_block_till_done()
+    assert calls == 0
+
+
+async def test_failed_announcement_refreshes_at_once(
+    hass: HomeAssistant, display: FakeDisplay, setup_entry: MockConfigEntry, tts_audio
+) -> None:
+    """When the display is gone, the entities say so without waiting for the poll."""
+    display.reachable = False
+    with pytest.raises(HomeAssistantError):
+        await _play(hass)
+    await hass.async_block_till_done()
+    assert hass.states.get(_eid(hass, SWITCH_DOMAIN, "dim_screen")).state == "unavailable"

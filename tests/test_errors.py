@@ -36,6 +36,7 @@ from custom_components.wall_display_plus.api import (
     WallDisplayError,
     WallDisplayUnsupportedError,
 )
+from custom_components.wall_display_plus.const import UPDATE_INTERVAL
 from custom_components.wall_display_plus.diagnostics import async_get_config_entry_diagnostics
 from custom_components.wall_display_plus.speaker import clip_filename
 
@@ -118,11 +119,11 @@ async def test_polling_failure_makes_entities_unavailable(
     """When the display stops answering, the entities become unavailable and come back."""
     entity_id = _eid(hass, SWITCH_DOMAIN, "motion_wakes_screen")
     display.reachable = False
-    async_fire_time_changed(hass, dt_util.utcnow() + timedelta(seconds=31))
+    async_fire_time_changed(hass, dt_util.utcnow() + UPDATE_INTERVAL + timedelta(seconds=1))
     await hass.async_block_till_done()
     assert hass.states.get(entity_id).state == STATE_UNAVAILABLE
     display.reachable = True
-    async_fire_time_changed(hass, dt_util.utcnow() + timedelta(seconds=62))
+    async_fire_time_changed(hass, dt_util.utcnow() + 2 * UPDATE_INTERVAL + timedelta(seconds=2))
     await hass.async_block_till_done()
     assert hass.states.get(entity_id).state != STATE_UNAVAILABLE
 
@@ -273,7 +274,7 @@ async def test_state_from_polling(
         return {"playback": {"enable": True, "media_type": "ALERT"}}
 
     display.get_media_status = status  # type: ignore[method-assign]
-    async_fire_time_changed(hass, dt_util.utcnow() + timedelta(seconds=31))
+    async_fire_time_changed(hass, dt_util.utcnow() + UPDATE_INTERVAL + timedelta(seconds=1))
     await hass.async_block_till_done()
     assert hass.states.get(entity_id).state == STATE_PLAYING
 

@@ -101,7 +101,24 @@ Manual brightness and automatic brightness are left out on purpose: while automa
 
 ## Data updates
 
-The integration polls the display every 30 seconds: device status (memory, storage, uptime), motion and screen settings, media player status, CPU temperature and its own clips in the media library. These are six small local requests. Playing, switches, numbers and buttons act immediately. Old clips are cleaned up after each clip and once a day.
+**The integration polls the display only every 10 minutes**, on purpose: the display is a small device, and six requests every few seconds add up. Everything the integration does itself is up to date at once:
+
+- Switches, numbers and buttons show their new value immediately.
+- Announcements, the playing state, the announcement delay and the cache hit rate update immediately.
+- When clips are uploaded or deleted, the cache sensors are refreshed right away.
+- When an announcement fails because the display does not answer, the entities become unavailable right away.
+
+What can be up to 10 minutes old: changes made **on the display itself** (its settings menu), memory, storage, CPU temperature, and a crash of the display app (the *App started* time itself is correct, it is computed back from the app's uptime).
+
+**Need fresher values?** Ask for them with `homeassistant.update_entity`, for example before an automation reads them or on your own schedule. One call refreshes all entities of the display:
+
+```yaml
+action: homeassistant.update_entity
+target:
+  entity_id: sensor.living_room_wall_display_free_memory
+```
+
+A shorter polling interval is not an option of the integration; Home Assistant recommends this way instead.
 
 ## Examples
 

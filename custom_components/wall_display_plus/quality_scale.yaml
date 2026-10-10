@@ -6,7 +6,11 @@ rules:
   action-setup:
     status: exempt
     comment: The integration registers no actions of its own.
-  appropriate-polling: done
+  appropriate-polling:
+    status: done
+    comment: >-
+      Every 10 minutes (weak device); own actions, library changes and failed
+      announcements refresh at once; update_entity for more.
   brands:
     status: done
     comment: Brand images ship in brand/ (served locally since Home Assistant 2026.x).

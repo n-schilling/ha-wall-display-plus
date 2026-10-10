@@ -29,7 +29,11 @@ FREE_SPACE_RESERVE: Final = 100 * 1024 * 1024
 # The display only accepts the user name "admin" for digest authentication.
 AUTH_USER: Final = "admin"
 
-UPDATE_INTERVAL: Final = timedelta(seconds=30)
+# Polling is rare on purpose: the display is weak, and everything the
+# integration does itself updates at once (writes set the new state, changes to
+# the media library and failed announcements trigger an immediate refresh).
+# Users who need fresher values call homeassistant.update_entity.
+UPDATE_INTERVAL: Final = timedelta(minutes=10)
 CLEANUP_INTERVAL: Final = timedelta(hours=24)
 
 # Every clip this integration uploads is named

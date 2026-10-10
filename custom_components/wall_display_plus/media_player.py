@@ -148,6 +148,9 @@ class WallDisplaySpeaker(WallDisplayEntity, MediaPlayerEntity):
                 translation_placeholders={"error": str(err)},
             ) from err
         except WallDisplayError as err:
+            # Perhaps the display is gone: refresh now, so the entities show
+            # it instead of waiting for the next poll.
+            self.hass.async_create_task(self.coordinator.async_request_refresh())
             raise HomeAssistantError(
                 translation_domain=DOMAIN,
                 translation_key="play_failed",
