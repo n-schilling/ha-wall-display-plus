@@ -16,7 +16,7 @@ The official integration's media player only plays files that are already in the
 ## How it works
 
 1. Home Assistant creates the audio: text to speech straight from the TTS engine, other media sources and URLs by download.
-2. The audio goes to the display's media library as an **alert** clip. Alert clips are separate from music: they do not show up in the music playlist or in the media browser of the official integration.
+2. The audio goes to the display's media library as an **alert** clip named `homeassistant_<tag>_<key>.<ext>`. The tag is random per Home Assistant instance, so several instances can share one display without touching each other's clips; files of others (music, photos, ringtones) are never touched. Alert clips are separate from music: they do not show up in the music playlist or in the media browser of the official integration.
 3. The display plays the clip once.
 4. The clip stays on the display, within a size limit (500 MB by default). The same announcement later starts at once, without creating and uploading it again. A clip is deleted when it was not played for 90 days (configurable). If a clip is gone from the display for whatever reason, it is uploaded again.
 
@@ -136,13 +136,14 @@ actions:
 - **What can be played:** text to speech, media sources and absolute `http(s)` URLs that return audio, up to 20 MB. Paths of your Home Assistant instance such as `/api/...` are refused: they would be fetched with a signature, so anyone allowed to call `play_media` could copy protected data into the display's media library, which can be read without a password.
 - **The motion switch writes to the display only when the value changes.** Every write makes the official integration reload, and its entities are unavailable for a moment. Do not change the switch from an automation that triggers on those entities becoming available again: that is a loop.
 - **Storage:** before every upload the integration checks the display's free storage. At least 100 MB must stay free; if not, it first deletes its own clips (never photos, videos, music or ringtones). If that is not enough, the clip is not uploaded and a repair issue "storage almost full" appears.
+- **File names** are at most 50 ASCII bytes. Firmware 2.8.2 stores names up to 250 bytes and silently drops longer ones.
 - **Undocumented interface:** the media upload uses the calls of the display's own web interface, which are not in the published API documentation. A firmware update can change them; the integration then shows a repair issue.
 - Discovery works over IPv4 only. It never moves a display with a password to a new address: anyone on the network can announce a display's name, and the login would go to that device. Use **Reconfigure** after an address change.
 
 ## Privacy
 
 - **Clips stay on the display** until they were not played for the configured time (90 days by default) or the cache needs room. They are audio files in the display's media library.
-- **Set a password on the display.** Without one, any device on your network can list the media library. The file names do not reveal the texts (they are keyed with a random secret per display that only Home Assistant knows), but the files are there.
+- **Set a password on the display.** Without one, any device on your network can list the media library. The file names (`homeassistant_<tag>_<key>`) show that a clip comes from Home Assistant, but do not reveal the texts (they are keyed with a random secret per display that only Home Assistant knows), but the files are there.
 - **For sensitive texts use `extra: {cache: false}`:** the clip is deleted right after it was played.
 - **The connection to the display is plain HTTP** (the display offers nothing else). Announcements travel unencrypted through your local network.
 - **Diagnostics hold nothing personal:** no password, address or MAC, no cache keys, file names or play times, nothing about what the display played. Error messages leave out the query part of URLs, which may carry tokens.
@@ -166,7 +167,7 @@ actions:
 1. **Settings → Devices & services → Wall Display Plus → ⋮ → Delete**. The integration deletes its clips from the display on the way.
 2. Remove the integration in HACS and restart Home Assistant.
 
-If the display was not reachable during the removal, its clips stay there. Add the integration again, press **Clear speaker cache** and remove it, or delete the `wdp_` files in the display's web interface.
+If the display was not reachable during the removal, its clips stay there. Delete the `homeassistant_` files in the display's web interface.
 
 The display's motion setting stays as it was last set.
 

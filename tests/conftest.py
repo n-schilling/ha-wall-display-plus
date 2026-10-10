@@ -53,7 +53,9 @@ class FakeDisplay:
         return next((i for i in self.library.values() if i.filename == filename), None)
 
     def clips(self) -> list[MediaItem]:
-        return [i for i in self.library.values() if i.filename.startswith("wdp_")]
+        return [
+            i for i in self.library.values() if i.filename.startswith(("homeassistant_", "wdp_"))
+        ]
 
     def renumber(self, filename: str) -> int:
         """Give a file a new id, as after a factory reset and new upload."""

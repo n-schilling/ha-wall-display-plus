@@ -18,9 +18,8 @@ from homeassistant.core import HomeAssistant
 from homeassistant.util import dt as dt_util
 
 from .api import WallDisplayError
-from .const import CLIP_PREFIX
 from .coordinator import WallDisplayConfigEntry
-from .speaker import parse_timestamp
+from .speaker import owns, parse_timestamp
 
 PLAYBACK_FIELDS = ("enable", "buffering", "volume", "media_type")
 
@@ -32,7 +31,9 @@ async def async_get_config_entry_diagnostics(
     runtime = entry.runtime_data
     clips: dict[str, Any] | str
     try:
-        ours = [i for i in await runtime.client.list_media() if i.filename.startswith(CLIP_PREFIX)]
+        ours = [
+            i for i in await runtime.client.list_media() if owns(i.filename, runtime.speaker.tag)
+        ]
     except WallDisplayError as err:
         clips = f"unavailable: {type(err).__name__}"
     else:

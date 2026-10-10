@@ -427,8 +427,8 @@ async def test_cleanup_skips_files_that_vanished(
 
 def test_unknown_extension_becomes_mp3() -> None:
     """Unknown file types are stored as .mp3."""
-    assert clip_filename("a" * 64, "xyz").endswith(".mp3")
-    assert clip_filename("a" * 64, ".WAV").endswith(".wav")
+    assert clip_filename("abc123", "a" * 64, "xyz").endswith(".mp3")
+    assert clip_filename("abc123", "a" * 64, ".WAV").endswith(".wav")
 
 
 async def test_browse_media(
@@ -496,6 +496,7 @@ async def test_stored_cache_is_loaded(
         "version": 1,
         "key": f"wall_display_plus.{config_entry.entry_id}.cache",
         "data": {
+            "tag": "abcdef",
             "secret": "00" * 32,
             "entries": {"k": {"filename": "wdp_k.mp3", "last_used": "2026-10-01T00:00:00"}},
         },

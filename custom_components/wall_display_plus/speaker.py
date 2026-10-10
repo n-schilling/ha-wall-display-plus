@@ -36,9 +36,13 @@ from .const import (
     CLIP_PREFIX,
     DOMAIN,
     FREE_SPACE_RESERVE,
+    KEY_LENGTH,
+    LEGACY_CLIP_PREFIX,
+    MAX_FILENAME_BYTES,
     MEDIA_TYPE_ALERT,
     PLAYBACK_MARGIN,
     STORAGE_VERSION,
+    TAG_LENGTH,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -63,12 +67,22 @@ def cache_key(secret: bytes, source: str) -> str:
     return hmac.new(secret, source.encode(), hashlib.sha256).hexdigest()
 
 
-def clip_filename(key: str, extension: str) -> str:
-    """Return the file name a clip gets on the display."""
+def clip_filename(tag: str, key: str, extension: str) -> str:
+    """Return the file name a clip gets on the display (ASCII, at most 50 bytes)."""
     extension = extension.lower().lstrip(".")
     if extension not in KNOWN_EXTENSIONS:
         extension = "mp3"
-    return f"{CLIP_PREFIX}{key[:24]}.{extension}"
+    name = f"{CLIP_PREFIX}{tag}_{key[:KEY_LENGTH]}.{extension}"
+    if len(name.encode()) > MAX_FILENAME_BYTES:  # pragma: no cover - cannot happen
+        raise ValueError(f"file name longer than {MAX_FILENAME_BYTES} bytes")
+    return name
+
+
+def owns(filename: str, tag: str | None) -> bool:
+    """Return whether a file on the display belongs to this config entry."""
+    if filename.startswith(LEGACY_CLIP_PREFIX):
+        return True
+    return tag is not None and filename.startswith(f"{CLIP_PREFIX}{tag}_")
 
 
 class Speaker:
@@ -93,6 +107,7 @@ class Speaker:
         # key -> {"filename": str, "last_used": iso timestamp}
         self._entries: dict[str, dict[str, str]] = {}
         self._secret = secrets.token_bytes(32)
+        self.tag = secrets.token_hex(TAG_LENGTH // 2)
         self._lock = asyncio.Lock()
         self._busy_until = 0.0
         self.playing_until = 0.0
@@ -109,7 +124,9 @@ class Speaker:
     async def async_load(self) -> None:
         """Load the cache and its secret from storage."""
         data = await self._store.async_load() or {}
-        if secret := data.get("secret"):
+        if tag := data.get("tag"):
+            self.tag = tag
+        if (secret := data.get("secret")) and tag:
             self._secret = bytes.fromhex(secret)
             self._entries = dict(data.get("entries", {}))
         else:
@@ -120,7 +137,7 @@ class Speaker:
             self._save()
 
     def _data(self) -> dict[str, Any]:
-        return {"secret": self._secret.hex(), "entries": self._entries}
+        return {"tag": self.tag, "secret": self._secret.hex(), "entries": self._entries}
 
     def _save(self) -> None:
         self._store.async_delay_save(self._data, 5)
@@ -163,7 +180,7 @@ class Speaker:
 
     async def _ensure_on_display(self, audio: ClipAudio) -> MediaItem:
         if audio.key is not None:
-            filename = clip_filename(audio.key, audio.extension)
+            filename = clip_filename(self.tag, audio.key, audio.extension)
             if (entry := self._entries.get(audio.key)) and entry["filename"] == filename:
                 item = await self._client.find_media(filename, attempts=1)
                 if item is not None:
@@ -171,9 +188,9 @@ class Speaker:
                 _LOGGER.debug("Cached clip %s is gone from the display", filename)
         await self._make_room(audio)
         if audio.key is None:
-            filename = clip_filename(secrets.token_hex(12), audio.extension)
+            filename = clip_filename(self.tag, secrets.token_hex(12), audio.extension)
         else:
-            filename = clip_filename(audio.key, audio.extension)
+            filename = clip_filename(self.tag, audio.key, audio.extension)
         await self._client.upload(filename, MEDIA_TYPE_ALERT, audio.data)
         item = await self._client.find_media(filename)
         if item is None:
@@ -193,7 +210,7 @@ class Speaker:
             _LOGGER.debug("Clip of %s bytes exceeds the cache limit, not caching it", needed)
             audio.key = None
 
-        ours = [i for i in await self._client.list_media() if i.filename.startswith(CLIP_PREFIX)]
+        ours = [i for i in await self._client.list_media() if owns(i.filename, self.tag)]
         last_used = {
             e["filename"]: parse_timestamp(e.get("last_used")) for e in self._entries.values()
         }
@@ -252,7 +269,7 @@ class Speaker:
             keep = {entry["filename"] for key, entry in self._entries.items() if key not in expired}
             deleted = 0
             for item in await self._client.list_media():
-                if item.filename.startswith(CLIP_PREFIX) and item.filename not in keep:
+                if owns(item.filename, self.tag) and item.filename not in keep:
                     deleted += await self._try_delete(item)
             if expired:
                 for key in expired:
@@ -268,7 +285,7 @@ class Speaker:
         async with self._lock:
             deleted = 0
             for item in await self._client.list_media():
-                if item.filename.startswith(CLIP_PREFIX):
+                if owns(item.filename, self.tag):
                     deleted += await self._try_delete(item)
             self._entries = {}
             self._secret = secrets.token_bytes(32)

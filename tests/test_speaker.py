@@ -64,7 +64,8 @@ async def test_first_play_uploads_alert_clip(
     await _play(hass, TTS_HELLO)
     assert len(display.uploads) == 1
     filename, media_type, size = display.uploads[0]
-    assert filename.startswith("wdp_") and filename.endswith(".mp3")
+    tag = setup_entry.runtime_data.speaker.tag
+    assert filename.startswith(f"homeassistant_{tag}_") and filename.endswith(".mp3")
     assert media_type == "ALERT"
     assert size == len(b"ID3fake-audio")
     assert display.played == [display.by_name(filename).id]

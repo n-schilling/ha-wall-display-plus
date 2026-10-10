@@ -25,9 +25,19 @@ AUTH_USER: Final = "admin"
 UPDATE_INTERVAL: Final = timedelta(seconds=30)
 CLEANUP_INTERVAL: Final = timedelta(hours=24)
 
-# Every clip this integration uploads starts with this prefix. Clips without
-# it belong to someone else and are never touched.
-CLIP_PREFIX: Final = "wdp_"
+# Every clip this integration uploads is named
+# "homeassistant_<tag>_<key>.<ext>". The tag is random per config entry, so two
+# Home Assistant instances on one display never touch each other's clips.
+# Files without this integration's prefix and tag are never touched.
+CLIP_PREFIX: Final = "homeassistant_"
+TAG_LENGTH: Final = 6
+KEY_LENGTH: Final = 24
+# Clips of versions before 0.1.0 were named "wdp_<key>"; they are cleaned up.
+LEGACY_CLIP_PREFIX: Final = "wdp_"
+
+# Firmware 2.8.2 stores file names up to 250 bytes (UTF-8). A longer name is
+# accepted without error but the file never appears in the library.
+MAX_FILENAME_BYTES: Final = 250
 
 # The display has a separate media type for notification sounds. Clips of this
 # type stay out of the music library and its playlist.

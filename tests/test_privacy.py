@@ -91,7 +91,8 @@ async def test_diagnostics_hold_nothing_personal(
     for key in setup_entry.runtime_data.speaker.entries:
         assert key not in text
         assert key[:24] not in text
-    assert "wdp_" not in text
+    assert "homeassistant_" not in text
+    assert setup_entry.runtime_data.speaker.tag not in text
     assert not re.search(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}", text)
     for private in ("Private Song", "Someone", "data:x", "Waschmaschine"):
         assert private not in text
@@ -115,8 +116,8 @@ async def test_diagnostics_unreachable_display(
 
 def test_same_text_different_secret_different_name() -> None:
     """Without the secret, a file name tells nothing about the text."""
-    name_a = clip_filename(cache_key(b"a" * 32, TTS), "mp3")
-    name_b = clip_filename(cache_key(b"b" * 32, TTS), "mp3")
+    name_a = clip_filename("abc123", cache_key(b"a" * 32, TTS), "mp3")
+    name_b = clip_filename("abc123", cache_key(b"b" * 32, TTS), "mp3")
     assert name_a != name_b
 
 
