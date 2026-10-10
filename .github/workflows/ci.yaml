@@ -68,5 +68,5 @@ jobs:
       - name: Strict typing
         run: mypy custom_components
       - name: Test
-        # Silver of the quality scale asks for more than 95 % test coverage
-        run: pytest -v --cov=custom_components.wall_display_plus --cov-report=term-missing --cov-fail-under=95
+        # Silver of the quality scale asks for more than 95 %; this repo keeps 99 %
+        run: pytest -v --cov=custom_components.wall_display_plus --cov-report=term-missing --cov-fail-under=99

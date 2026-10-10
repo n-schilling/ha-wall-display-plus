@@ -36,5 +36,5 @@ body:
     id: log
     attributes:
       label: Diagnostics or log
-      description: Download the diagnostics from the integration's page, or copy the log lines. Remove host names and anything else private.
+      description: Download the diagnostics from the integration's page; they hold no password, address or announcement texts. Copied log lines can contain addresses and URLs, please check them before posting.
       render: text

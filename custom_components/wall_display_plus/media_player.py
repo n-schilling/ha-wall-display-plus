@@ -8,7 +8,7 @@ import mimetypes
 import time
 from typing import Any
 
-from aiohttp import ClientError, ClientTimeout
+from aiohttp import ClientError, ClientResponseError, ClientTimeout
 import yarl
 
 from homeassistant.components import media_source, tts
@@ -44,7 +44,7 @@ from .api import (
 from .const import DOMAIN, FREE_SPACE_RESERVE, MEDIA_TYPE_ALERT
 from .coordinator import WallDisplayConfigEntry
 from .entity import WallDisplayEntity
-from .speaker import ClipAudio, cache_key
+from .speaker import ClipAudio
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -207,7 +207,9 @@ class WallDisplaySpeaker(WallDisplayEntity, MediaPlayerEntity):
                     # voice assistant): resolve it like any media source and
                     # do not cache it.
                     return await self._async_resolve_and_fetch(media_id, None)
-            return await self._async_resolve_and_fetch(media_id, cache_key(media_id))
+            return await self._async_resolve_and_fetch(
+                media_id, self._entry.runtime_data.speaker.key_for(media_id)
+            )
         # Anything else must be a plain http(s) URL. It is fetched as given and
         # never signed: signing would let any user who may call play_media
         # read authenticated Home Assistant paths through the display.
@@ -216,9 +218,9 @@ class WallDisplaySpeaker(WallDisplayEntity, MediaPlayerEntity):
             raise ServiceValidationError(
                 translation_domain=DOMAIN,
                 translation_key="unsupported_media",
-                translation_placeholders={"media_id": media_id},
+                translation_placeholders={"media_id": _without_query(media_id)},
             )
-        return await self._async_fetch(media_id, cache_key(media_id))
+        return await self._async_fetch(media_id, self._entry.runtime_data.speaker.key_for(media_id))
 
     async def _async_resolve_and_fetch(self, media_id: str, key: str | None) -> ClipAudio:
         """Resolve a media source item and download it."""
@@ -238,7 +240,7 @@ class WallDisplaySpeaker(WallDisplayEntity, MediaPlayerEntity):
         else:
             options: dict[str, Any] = dict(parsed["options"])
             options.pop("use_file_cache", None)
-            key = cache_key(
+            key = self._entry.runtime_data.speaker.key_for(
                 json.dumps(
                     {"message": parsed["message"], **options},
                     sort_keys=True,
@@ -250,10 +252,12 @@ class WallDisplaySpeaker(WallDisplayEntity, MediaPlayerEntity):
         except HomeAssistantError:
             raise
         except Exception as err:
+            # TTS engines fail in many ways. Pass on only the type: the
+            # engine's message may quote the text to speak.
             raise HomeAssistantError(
                 translation_domain=DOMAIN,
                 translation_key="tts_failed",
-                translation_placeholders={"error": str(err)},
+                translation_placeholders={"error": type(err).__name__},
             ) from err
         return ClipAudio(key=key, extension=extension, data=data)
 
@@ -275,7 +279,7 @@ class WallDisplaySpeaker(WallDisplayEntity, MediaPlayerEntity):
             raise HomeAssistantError(
                 translation_domain=DOMAIN,
                 translation_key="fetch_failed",
-                translation_placeholders={"error": str(err)},
+                translation_placeholders={"error": _describe_fetch_error(err, url)},
             ) from err
         if len(data) > MAX_CLIP_BYTES:
             raise HomeAssistantError(translation_domain=DOMAIN, translation_key="clip_too_large")
@@ -318,3 +322,18 @@ def _extension(url: str, mime_type: str) -> str:
 def _mb(size: int) -> str:
     """Format bytes as megabytes for messages."""
     return str(round(size / 1024 / 1024))
+
+
+def _without_query(url: str) -> str:
+    """Drop query and fragment: they may carry tokens or signatures."""
+    try:
+        return str(yarl.URL(url).with_query(None).with_fragment(None))
+    except TypeError, ValueError:
+        return "<invalid URL>"
+
+
+def _describe_fetch_error(err: Exception, url: str) -> str:
+    """Describe a download error without the URL's query (tokens, keys)."""
+    if isinstance(err, ClientResponseError):
+        return f"HTTP {err.status} {err.message}".strip()
+    return f"{type(err).__name__} for {_without_query(url)}"

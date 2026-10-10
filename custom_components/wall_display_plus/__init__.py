@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from datetime import datetime
 import logging
 
@@ -15,6 +16,7 @@ from homeassistant.helpers.storage import Store
 from .api import WallDisplayAuthError, WallDisplayClient, WallDisplayError
 from .const import (
     CLEANUP_INTERVAL,
+    CLIP_PREFIX,
     CONF_CACHE_DAYS,
     CONF_CACHE_MAX_MB,
     DEFAULT_CACHE_DAYS,
@@ -26,6 +28,9 @@ from .coordinator import RuntimeData, WallDisplayConfigEntry, WallDisplayCoordin
 from .speaker import Speaker
 
 _LOGGER = logging.getLogger(__name__)
+
+# Seconds to delete the clips when the integration is removed.
+REMOVE_TIMEOUT = 10
 
 PLATFORMS: list[Platform] = [Platform.BUTTON, Platform.MEDIA_PLAYER, Platform.SWITCH]
 
@@ -93,9 +98,19 @@ async def async_unload_entry(hass: HomeAssistant, entry: WallDisplayConfigEntry)
 
 
 async def async_remove_entry(hass: HomeAssistant, entry: WallDisplayConfigEntry) -> None:
-    """Remove the stored cache when the entry is deleted.
+    """Delete the clips from the display and the stored cache.
 
-    The clips stay on the display; the "Clear speaker cache" button deletes
-    them before removing the entry.
+    One attempt with a short timeout: an unreachable display must not block
+    the removal. The README names the "Clear speaker cache" button for that case.
     """
+    client = WallDisplayClient(
+        async_get_clientsession(hass), entry.data[CONF_HOST], entry.data.get(CONF_PASSWORD)
+    )
+    try:
+        async with asyncio.timeout(REMOVE_TIMEOUT):
+            for item in await client.list_media():
+                if item.filename.startswith(CLIP_PREFIX):
+                    await client.delete_media(item.id)
+    except (WallDisplayError, TimeoutError) as err:
+        _LOGGER.debug("Clips stay on the display: %s", err)
     await Store(hass, STORAGE_VERSION, f"{DOMAIN}.{entry.entry_id}.cache").async_remove()

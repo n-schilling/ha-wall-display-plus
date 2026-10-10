@@ -142,7 +142,7 @@ async def test_diagnostics_hide_password(
     assert await hass.config_entries.async_setup(config_entry.entry_id)
     diag = await async_get_config_entry_diagnostics(hass, config_entry)
     assert "secret" not in str(diag)
-    assert diag["device"]["mac"] == MAC
+    assert diag["device"]["mac"] == "**REDACTED**"
 
 
 async def test_unload(hass: HomeAssistant, setup_entry: MockConfigEntry) -> None:

@@ -1,7 +1,10 @@
 """Clip cache and playback for one wall display.
 
 A clip is cached under a key derived from what was asked to play (for text to
-speech: engine, message, language and options). The cache remembers the
+speech: engine, message, language and options). The key is an HMAC with a
+random secret per display, kept in the cache store: without it nobody can tell
+from a file name on the display which text it holds, even by trying likely
+texts. Clearing the cache creates a new secret. The cache remembers the
 clip's file name on the display and when it was last played. Before playing,
 the display's media library is checked by file name; if the file is gone, the
 clip is uploaded again as if it had never been cached.
@@ -18,7 +21,9 @@ import asyncio
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 import hashlib
+import hmac
 import logging
+import secrets
 import time
 from typing import Any
 
@@ -53,9 +58,9 @@ class ClipAudio:
     data: bytes
 
 
-def cache_key(source: str) -> str:
+def cache_key(secret: bytes, source: str) -> str:
     """Return the cache key for what was asked to play."""
-    return hashlib.sha256(source.encode()).hexdigest()
+    return hmac.new(secret, source.encode(), hashlib.sha256).hexdigest()
 
 
 def clip_filename(key: str, extension: str) -> str:
@@ -87,6 +92,7 @@ class Speaker:
         )
         # key -> {"filename": str, "last_used": iso timestamp}
         self._entries: dict[str, dict[str, str]] = {}
+        self._secret = secrets.token_bytes(32)
         self._lock = asyncio.Lock()
         self._busy_until = 0.0
         self.playing_until = 0.0
@@ -96,17 +102,32 @@ class Speaker:
         """Return the cache entries (for diagnostics)."""
         return self._entries
 
+    def key_for(self, source: str) -> str:
+        """Return the cache key for what was asked to play."""
+        return cache_key(self._secret, source)
+
     async def async_load(self) -> None:
-        """Load the cache from storage."""
+        """Load the cache and its secret from storage."""
         data = await self._store.async_load() or {}
-        self._entries = dict(data.get("entries", {}))
+        if secret := data.get("secret"):
+            self._secret = bytes.fromhex(secret)
+            self._entries = dict(data.get("entries", {}))
+        else:
+            # A store without a secret (or none at all): start with a new
+            # secret. Entries keyed the old way are dropped, so the next
+            # cleanup removes their files from the display.
+            self._entries = {}
+            self._save()
+
+    def _data(self) -> dict[str, Any]:
+        return {"secret": self._secret.hex(), "entries": self._entries}
 
     def _save(self) -> None:
-        self._store.async_delay_save(lambda: {"entries": self._entries}, 5)
+        self._store.async_delay_save(self._data, 5)
 
     async def async_flush(self) -> None:
         """Write the cache now (before the entry unloads)."""
-        await self._store.async_save({"entries": self._entries})
+        await self._store.async_save(self._data())
 
     async def async_play(self, audio: ClipAudio) -> float:
         """Play a clip; return its duration in seconds (0 when unknown).
@@ -150,7 +171,7 @@ class Speaker:
                 _LOGGER.debug("Cached clip %s is gone from the display", filename)
         await self._make_room(audio)
         if audio.key is None:
-            filename = clip_filename(cache_key(f"uncached:{time.time_ns()}"), audio.extension)
+            filename = clip_filename(secrets.token_hex(12), audio.extension)
         else:
             filename = clip_filename(audio.key, audio.extension)
         await self._client.upload(filename, MEDIA_TYPE_ALERT, audio.data)
@@ -173,7 +194,9 @@ class Speaker:
             audio.key = None
 
         ours = [i for i in await self._client.list_media() if i.filename.startswith(CLIP_PREFIX)]
-        last_used = {e["filename"]: _parse(e.get("last_used")) for e in self._entries.values()}
+        last_used = {
+            e["filename"]: parse_timestamp(e.get("last_used")) for e in self._entries.values()
+        }
         oldest = datetime.min.replace(tzinfo=dt_util.UTC)
         # Orphans (not in the cache) first, then the clip played longest ago
         candidates = sorted(
@@ -224,7 +247,7 @@ class Speaker:
             expired = {
                 key
                 for key, entry in self._entries.items()
-                if _parse(entry.get("last_used")) < limit
+                if parse_timestamp(entry.get("last_used")) < limit
             }
             keep = {entry["filename"] for key, entry in self._entries.items() if key not in expired}
             deleted = 0
@@ -238,13 +261,17 @@ class Speaker:
             return deleted
 
     async def async_clear(self) -> int:
-        """Delete every clip of this integration and forget the cache."""
+        """Delete every clip of this integration, forget the cache, new secret.
+
+        The new secret makes hashes from diagnostics shared before useless.
+        """
         async with self._lock:
             deleted = 0
             for item in await self._client.list_media():
                 if item.filename.startswith(CLIP_PREFIX):
                     deleted += await self._try_delete(item)
             self._entries = {}
+            self._secret = secrets.token_bytes(32)
             self._save()
             return deleted
 
@@ -258,7 +285,7 @@ class Speaker:
         return 1
 
 
-def _parse(value: str | None) -> datetime:
+def parse_timestamp(value: str | None) -> datetime:
     """Parse a stored timestamp; one without time zone counts as UTC."""
     parsed = dt_util.parse_datetime(value) if value else None
     if parsed is None:

@@ -139,6 +139,16 @@ actions:
 - **Undocumented interface:** the media upload uses the calls of the display's own web interface, which are not in the published API documentation. A firmware update can change them; the integration then shows a repair issue.
 - Discovery works over IPv4 only. It never moves a display with a password to a new address: anyone on the network can announce a display's name, and the login would go to that device. Use **Reconfigure** after an address change.
 
+## Privacy
+
+- **Clips stay on the display** until they were not played for the configured time (90 days by default) or the cache needs room. They are audio files in the display's media library.
+- **Set a password on the display.** Without one, any device on your network can list the media library. The file names do not reveal the texts (they are keyed with a random secret per display that only Home Assistant knows), but the files are there.
+- **For sensitive texts use `extra: {cache: false}`:** the clip is deleted right after it was played.
+- **The connection to the display is plain HTTP** (the display offers nothing else). Announcements travel unencrypted through your local network.
+- **Diagnostics hold nothing personal:** no password, address or MAC, no cache keys, file names or play times, nothing about what the display played. Error messages leave out the query part of URLs, which may carry tokens.
+- **Clear speaker cache** also creates a new secret.
+- The integration sends no telemetry and contacts no third party; it only downloads URLs you ask it to play.
+
 ## Troubleshooting
 
 | Problem | What to do |
@@ -149,13 +159,14 @@ actions:
 | Repair issue "storage almost full" | Delete photos, videos or music in the display's web interface. The issue disappears once a clip plays again. |
 | "Unsupported media" or "not audio" | Only text to speech, media sources and http(s) URLs with audio can be played. |
 | Old voice after changing it | Press **Clear speaker cache**. |
-| Something else | Download the diagnostics from the integration's page (no password inside) and attach them to an issue. |
+| Something else | Download the diagnostics from the integration's page and attach them to an issue. They hold no password, address or announcement texts. |
 
 ## Removal
 
-1. Press **Clear speaker cache** to delete the clips from the display (removing the integration leaves them there).
-2. **Settings → Devices & services → Wall Display Plus → ⋮ → Delete**.
-3. Remove the integration in HACS and restart Home Assistant.
+1. **Settings → Devices & services → Wall Display Plus → ⋮ → Delete**. The integration deletes its clips from the display on the way.
+2. Remove the integration in HACS and restart Home Assistant.
+
+If the display was not reachable during the removal, its clips stay there. Add the integration again, press **Clear speaker cache** and remove it, or delete the `wdp_` files in the display's web interface.
 
 The display's motion setting stays as it was last set.
 

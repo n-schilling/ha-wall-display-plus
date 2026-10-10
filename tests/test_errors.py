@@ -485,7 +485,7 @@ async def test_diagnostics_display_unreachable(
     """Diagnostics work while the display is away."""
     display.reachable = False
     diag = await async_get_config_entry_diagnostics(hass, setup_entry)
-    assert diag["clips_on_display"].startswith("unavailable")
+    assert diag["clips_on_display"] == "unavailable: WallDisplayError"
 
 
 async def test_stored_cache_is_loaded(
@@ -495,7 +495,10 @@ async def test_stored_cache_is_loaded(
     hass_storage[f"wall_display_plus.{config_entry.entry_id}.cache"] = {
         "version": 1,
         "key": f"wall_display_plus.{config_entry.entry_id}.cache",
-        "data": {"entries": {"k": {"filename": "wdp_k.mp3", "last_used": "2026-10-01T00:00:00"}}},
+        "data": {
+            "secret": "00" * 32,
+            "entries": {"k": {"filename": "wdp_k.mp3", "last_used": "2026-10-01T00:00:00"}},
+        },
     }
     config_entry.add_to_hass(hass)
     assert await hass.config_entries.async_setup(config_entry.entry_id)
