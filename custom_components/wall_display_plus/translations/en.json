@@ -83,11 +83,63 @@
     "switch": {
       "motion_wakes_screen": {
         "name": "Motion wakes screen"
+      },
+      "dim_screen": {
+        "name": "Dim screen when idle"
+      },
+      "turn_screen_off": {
+        "name": "Turn screen off when idle"
+      },
+      "screen_saver": {
+        "name": "Screen saver"
       }
     },
     "button": {
       "clear_cache": {
         "name": "Clear speaker cache"
+      },
+      "restart_app": {
+        "name": "Restart display app"
+      }
+    },
+    "sensor": {
+      "memory_free": {
+        "name": "Free memory"
+      },
+      "storage_free": {
+        "name": "Free storage"
+      },
+      "cpu_temperature": {
+        "name": "CPU temperature"
+      },
+      "cache_clips": {
+        "name": "Cached clips"
+      },
+      "cache_size": {
+        "name": "Cache size"
+      },
+      "announcement_delay": {
+        "name": "Announcement delay"
+      },
+      "cache_hit_rate": {
+        "name": "Cache hit rate"
+      },
+      "app_started": {
+        "name": "App started"
+      }
+    },
+    "number": {
+      "minimum_brightness": {
+        "name": "Minimum brightness"
+      },
+      "dim_after": {
+        "name": "Dim after"
+      },
+      "screen_off_after": {
+        "name": "Screen off after"
+      },
+      "screen_saver_after": {
+        "name": "Screen saver after"
       }
     }
   },
@@ -139,6 +191,12 @@
     },
     "text_too_long": {
       "message": "The text has {length} characters; this speaker allows at most {max}."
+    },
+    "invalid_volume": {
+      "message": "The volume {volume} is invalid; use a number from 0 to 1."
+    },
+    "restart_failed": {
+      "message": "The display app could not be restarted: {error}"
     }
   },
   "issues": {

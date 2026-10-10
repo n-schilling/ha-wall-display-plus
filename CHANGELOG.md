@@ -13,6 +13,10 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 - Free storage check before every upload: at least 100 MB must stay free. Own clips are deleted first; if that is not enough, nothing is uploaded and a repair issue appears. Other files on the display are never touched.
 - Maximum text length for text to speech, 500 characters by default (configurable 50–5000): longer texts are refused before the engine runs, so a text pasted by mistake costs no computing time on the host.
 - Switch "Motion wakes screen", which writes to the display only when the value changes.
+- Screen settings: switches for dimming, turning off and the screen saver; numbers for minimum brightness and the three timeouts (10–3600 s). Written only on change, as whole sections like the display's web interface does. Manual and automatic brightness are left out on purpose.
+- Volume per announcement: `extra: {volume: 0-1}`; the display goes back to its previous volume afterwards, at the latest before the next announcement.
+- Diagnostic sensors: free memory, free storage, cached clips, cache size, announcement delay, app started (shows app crashes), and – disabled by default – CPU temperature and cache hit rate.
+- Button "Restart display app" (only the app, not the device).
 - Button "Clear speaker cache".
 - Only audio is played: media sources and absolute http(s) URLs whose answer is audio. Paths of the Home Assistant instance are refused and never fetched with a signature.
 - Privacy: clip file names are keyed with a random secret per display (HMAC), so they do not reveal the texts; clearing the cache creates a new secret. Diagnostics hold no address, MAC, cache keys, file names, play times or played titles. Error messages leave out URL queries and TTS engine messages. Removing the integration deletes its clips from the display.

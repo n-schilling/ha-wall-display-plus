@@ -114,14 +114,20 @@ class WallDisplaySpeaker(WallDisplayEntity, MediaPlayerEntity):
     async def async_play_media(
         self, media_type: MediaType | str, media_id: str, **kwargs: Any
     ) -> None:
-        """Play text to speech, a media source item or a URL."""
+        """Play text to speech, a media source item or a URL.
+
+        extra: {cache: false} plays without keeping the clip, {volume: 0.0-1.0}
+        plays this clip at its own volume and goes back afterwards.
+        """
+        started = time.monotonic()
         extra = kwargs.get(ATTR_MEDIA_EXTRA) or {}
+        volume = _extra_volume(extra.get("volume"))
         audio = await self._async_get_audio(media_id)
         if extra.get("cache") is False:
             audio.key = None
         speaker = self._entry.runtime_data.speaker
         try:
-            duration = await speaker.async_play(audio)
+            duration = await speaker.async_play(audio, volume)
         except WallDisplayAuthError as err:
             self._entry.async_start_reauth(self.hass)
             raise HomeAssistantError(
@@ -147,6 +153,8 @@ class WallDisplaySpeaker(WallDisplayEntity, MediaPlayerEntity):
                 translation_key="play_failed",
                 translation_placeholders={"error": str(err)},
             ) from err
+        speaker.last_delay = round(time.monotonic() - started, 2)
+        self.coordinator.async_update_listeners()
         ir.async_delete_issue(self.hass, DOMAIN, unsupported_issue_id(self._entry))
         ir.async_delete_issue(self.hass, DOMAIN, storage_issue_id(self._entry))
         self.async_write_ha_state()
@@ -354,3 +362,16 @@ def _describe_fetch_error(err: Exception, url: str) -> str:
     if isinstance(err, ClientResponseError):
         return f"HTTP {err.status} {err.message}".strip()
     return f"{type(err).__name__} for {_without_query(url)}"
+
+
+def _extra_volume(value: Any) -> int | None:
+    """Turn extra.volume (0.0-1.0, like volume_set) into the display's 0-10."""
+    if value is None:
+        return None
+    if isinstance(value, bool) or not isinstance(value, int | float) or not 0 <= value <= 1:
+        raise ServiceValidationError(
+            translation_domain=DOMAIN,
+            translation_key="invalid_volume",
+            translation_placeholders={"volume": str(value)},
+        )
+    return round(value * 10)

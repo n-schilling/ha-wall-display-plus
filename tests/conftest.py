@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Generator
+import copy
 from typing import Any
 from unittest.mock import patch
 
@@ -50,6 +51,25 @@ class FakeDisplay:
         self.motion_writes = 0
         self.clip_duration = 0.05
         self.fs_free: int | None = 20 * 1024**3
+        self.ram_free = 73 * 1024**2
+        self.uptime = 10_000
+        self.app_uptime = 9_990
+        self.cpu_temperature: float | None = 44.4
+        self.volume = 5
+        self.volume_writes: list[int] = []
+        self.app_restarts = 0
+        self.ui_writes: list[dict[str, Any]] = []
+        self.ui_config: dict[str, Any] = {
+            "brightness": {
+                "auto": True,
+                "level": 19,
+                "min_level": 25,
+                "auto_off": {"enable": True, "by_lux": False, "timeout": 60},
+                "auto_dim": {"enable": True, "timeout": 30},
+            },
+            "lock_type": "none",
+            "screen_saver": {"enable": False, "timeout": 20, "priority_element": "CLOCK"},
+        }
         self._next_id = 10
         self.client_password: str | None = None
 
@@ -88,6 +108,9 @@ class FakeDisplay:
             app=self.app,
             auth_enabled=self.auth_enabled,
             fs_free=self.fs_free,
+            ram_free=self.ram_free,
+            uptime=self.uptime,
+            app_uptime=self.app_uptime,
         )
 
     async def rpc(self, method: str, params: dict[str, Any] | None = None, **_: Any) -> dict:
@@ -135,7 +158,29 @@ class FakeDisplay:
 
     async def get_media_status(self) -> dict[str, Any]:
         self._check_auth()
-        return {"playback": {"enable": False, "media_type": "AUDIO"}}
+        return {"playback": {"enable": False, "media_type": "AUDIO", "volume": self.volume}}
+
+    async def set_volume(self, level: int) -> None:
+        self._check_auth()
+        self.volume = level
+        self.volume_writes.append(level)
+
+    async def get_ui_config(self) -> dict[str, Any]:
+        self._check_auth()
+        return copy.deepcopy(self.ui_config)
+
+    async def set_ui_config(self, config: dict[str, Any]) -> None:
+        self._check_auth()
+        self.ui_writes.append(copy.deepcopy(config))
+        self.ui_config.update(copy.deepcopy(config))
+
+    async def get_cpu_temperature(self) -> float | None:
+        self._check_auth()
+        return self.cpu_temperature
+
+    async def restart_app(self) -> None:
+        self._check_auth()
+        self.app_restarts += 1
 
     async def get_motion_config(self) -> dict[str, Any]:
         self._check_auth()

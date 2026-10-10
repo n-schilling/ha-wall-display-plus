@@ -251,3 +251,33 @@ async def test_upload_empty(server, session) -> None:
     await WallDisplayClient(session, host, None).upload("homeassistant_abcdef_e.mp3", "ALERT", b"")
     puts = [c["params"] for c in twin.calls if c["method"] == "Media.PutMedia"]
     assert len(puts) == 1 and puts[0]["last"] is True and puts[0]["data"] == ""
+
+
+async def test_device_info_uptime_and_memory(server, session) -> None:
+    twin, host = server
+    twin.shelly.update({"uptime": 13395, "app_uptime": 13369, "ram_free": 73235584})
+    info = await WallDisplayClient(session, host, None).get_device_info()
+    assert (info.uptime, info.app_uptime, info.ram_free) == (13395, 13369, 73235584)
+    twin.shelly.update({"uptime": True, "ram_free": "x"})  # wrong types are ignored
+    info = await WallDisplayClient(session, host, None).get_device_info()
+    assert info.uptime is None and info.ram_free is None
+
+
+async def test_screen_volume_restart_temperature(server, session) -> None:
+    twin, host = server
+    twin.answers["Ui.GetConfig"] = {"result": {"brightness": {"auto": True}}}
+    twin.answers["Sys.GetInternalTemperatures"] = {
+        "result": {"sht3x": -275.15, "thermal-cpufreq-0": 44.375}
+    }
+    client = WallDisplayClient(session, host, None)
+    assert await client.get_ui_config() == {"brightness": {"auto": True}}
+    await client.set_ui_config({"brightness": {"auto": False}})
+    await client.set_volume(8)
+    await client.restart_app()
+    assert await client.get_cpu_temperature() == 44.375
+    twin.answers["Sys.GetInternalTemperatures"] = {"result": {"sht3x": -275.15}}
+    assert await client.get_cpu_temperature() is None
+    methods = [(c["method"], c["params"]) for c in twin.calls]
+    assert ("Ui.SetConfig", {"config": {"brightness": {"auto": False}}}) in methods
+    assert ("Media.SetVolume", {"volume": 8}) in methods
+    assert ("Sys.RestartApplication", {}) in methods

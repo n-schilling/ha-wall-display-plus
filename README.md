@@ -88,13 +88,20 @@ Since Home Assistant 2026.10 a device belongs to a single integration, so the en
 |---|---|
 | Speaker (`media_player`) | Plays text to speech, media sources and audio URLs as announcements. Supports `tts.speak`, `media_player.play_media` (with `announce`), stop and media browsing (audio only). |
 | Motion wakes screen (`switch`, configuration) | Whether motion in front of the display wakes the screen. Touch always does. |
-| Clear speaker cache (`button`, configuration) | Deletes every clip this integration put on the display. |
+| Dim screen when idle, Turn screen off when idle, Screen saver (`switch`, configuration) | The display's own screen settings. |
+| Minimum brightness, Dim after, Screen off after, Screen saver after (`number`, configuration) | Minimum brightness in %, timeouts 10–3600 s. |
+| Clear speaker cache (`button`, configuration) | Deletes every clip this integration put on the display and creates a new secret for the file names. |
+| Restart display app (`button`, configuration) | Restarts only the display app, faster than restarting the device; helps when the dashboard hangs. |
+| Free memory, Free storage, Cached clips, Cache size, Announcement delay, App started (`sensor`, diagnostic) | How the display and the speaker are doing. *App started* moves without a device restart when the display app crashed or was restarted. *Announcement delay* is the time from the request to the start of the last announcement. |
+| CPU temperature, Cache hit rate (`sensor`, diagnostic, disabled by default) | Temperature of the display's processor; share of announcements played without creating and uploading them again (since Home Assistant started). |
 
-`media_player.play_media` accepts `extra: {cache: false}` to play a clip without keeping it.
+Manual brightness and automatic brightness are left out on purpose: while automatic brightness is on, the display reports its current brightness (0 while the screen is off) as the manual level, so turning the automatic off could leave the screen black.
+
+`media_player.play_media` accepts `extra: {cache: false}` to play a clip without keeping it, and `extra: {volume: 0.8}` (0–1, like `volume_set`) to play one announcement at its own volume; the display goes back to its previous volume afterwards.
 
 ## Data updates
 
-The integration polls the display every 30 seconds for the motion setting and the media player status. Playing, the switch and the button act immediately. Old clips are cleaned up after each clip and once a day.
+The integration polls the display every 30 seconds: device status (memory, storage, uptime), motion and screen settings, media player status, CPU temperature and its own clips in the media library. These are six small local requests. Playing, switches, numbers and buttons act immediately. Old clips are cleaned up after each clip and once a day.
 
 ## Examples
 
@@ -120,6 +127,20 @@ data:
   media_content_id: media-source://tts/tts.piper?message=Dinner+in+15+minutes
   extra:
     cache: false
+```
+
+Louder at night for the alarm, at its own volume:
+
+```yaml
+action: media_player.play_media
+target:
+  entity_id: media_player.living_room_wall_display_speaker
+data:
+  media_content_type: music
+  media_content_id: media-source://tts/tts.piper?message=Alarm+in+the+garage
+  announce: true
+  extra:
+    volume: 1.0
 ```
 
 An audio file:
@@ -155,10 +176,10 @@ actions:
 
 ## Known limitations
 
-- **Volume** is the display's current media volume. Set it with the official integration's media player.
+- **Volume** is the display's current media volume, unless an announcement brings its own (`extra: {volume: …}`). Set the general volume with the official integration's media player.
 - **The TTS voice is not part of the cache.** After changing the voice, press **Clear speaker cache**; cached announcements keep the old voice until they expire otherwise.
 - **What can be played:** text to speech, media sources and absolute `http(s)` URLs that return audio, up to 20 MB. Paths of your Home Assistant instance such as `/api/...` are refused: they would be fetched with a signature, so anyone allowed to call `play_media` could copy protected data into the display's media library, which can be read without a password.
-- **The motion switch writes to the display only when the value changes.** Every write makes the official integration reload, and its entities are unavailable for a moment. Do not change the switch from an automation that triggers on those entities becoming available again: that is a loop.
+- **Motion and screen settings are written only when the value changes.** Every write makes the official integration reload, and its entities are unavailable for a moment. Do not change these settings from an automation that triggers on those entities becoming available again: that is a loop.
 - **Storage:** before every upload the integration checks the display's free storage. At least 100 MB must stay free; if not, it first deletes its own clips (never photos, videos, music or ringtones). If that is not enough, the clip is not uploaded and a repair issue "storage almost full" appears.
 - **File names** are at most 50 ASCII bytes. Firmware 2.8.2 stores names up to 250 bytes and silently drops longer ones.
 - **Undocumented interface:** the media upload uses the calls of the display's own web interface, which are not in the published API documentation. A firmware update can change them; the integration then shows a repair issue.

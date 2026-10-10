@@ -74,8 +74,9 @@ rules:
   entity-disabled-by-default:
     status: done
     comment: >-
-      Reviewed: all three entities are core functions. The cache button stays
-      enabled because it is needed before removing the integration.
+      Reviewed: CPU temperature and cache hit rate are disabled by default;
+      the other entities are the speaker, its settings or diagnostics people
+      use to judge the display.
   entity-translations: done
   exception-translations: done
   icon-translations: done

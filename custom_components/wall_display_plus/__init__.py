@@ -32,7 +32,13 @@ _LOGGER = logging.getLogger(__name__)
 # Seconds to delete the clips when the integration is removed.
 REMOVE_TIMEOUT = 10
 
-PLATFORMS: list[Platform] = [Platform.BUTTON, Platform.MEDIA_PLAYER, Platform.SWITCH]
+PLATFORMS: list[Platform] = [
+    Platform.BUTTON,
+    Platform.MEDIA_PLAYER,
+    Platform.NUMBER,
+    Platform.SENSOR,
+    Platform.SWITCH,
+]
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: WallDisplayConfigEntry) -> bool:
@@ -57,9 +63,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: WallDisplayConfigEntry) 
             translation_placeholders={"host": entry.data[CONF_HOST], "mac": device.mac},
         )
 
-    coordinator = WallDisplayCoordinator(hass, entry, client)
-    await coordinator.async_config_entry_first_refresh()
-
     speaker = Speaker(
         hass,
         client,
@@ -68,6 +71,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: WallDisplayConfigEntry) 
         entry.options.get(CONF_CACHE_MAX_MB, DEFAULT_CACHE_MAX_MB) * 1024 * 1024,
     )
     await speaker.async_load()
+
+    coordinator = WallDisplayCoordinator(hass, entry, client, speaker)
+    await coordinator.async_config_entry_first_refresh()
 
     entry.runtime_data = RuntimeData(
         client=client, device=device, coordinator=coordinator, speaker=speaker

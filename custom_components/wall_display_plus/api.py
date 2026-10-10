@@ -57,6 +57,9 @@ class DeviceInfo:
     app: str
     auth_enabled: bool
     fs_free: int | None = None  # bytes of free storage, None if not reported
+    ram_free: int | None = None  # bytes of free memory
+    uptime: int | None = None  # seconds since the device started
+    app_uptime: int | None = None  # seconds since the display app started
 
     @property
     def is_wall_display(self) -> bool:
@@ -105,7 +108,10 @@ class WallDisplayClient:
             firmware=str(data.get("ver", "")),
             app=str(data.get("app", "")),
             auth_enabled=bool(data.get("auth_en", False)),
-            fs_free=int(data["fs_free"]) if isinstance(data.get("fs_free"), int) else None,
+            fs_free=_int_or_none(data.get("fs_free")),
+            ram_free=_int_or_none(data.get("ram_free")),
+            uptime=_int_or_none(data.get("uptime")),
+            app_uptime=_int_or_none(data.get("app_uptime")),
         )
 
     async def rpc(
@@ -215,6 +221,34 @@ class WallDisplayClient:
         """Return the media player status."""
         return await self.rpc("Media.GetStatus")
 
+    async def get_ui_config(self) -> dict[str, Any]:
+        """Return the screen configuration (brightness, dimming, screen saver)."""
+        return await self.rpc("Ui.GetConfig")
+
+    async def set_ui_config(self, config: dict[str, Any]) -> None:
+        """Change the screen configuration.
+
+        Like the display's web interface, callers send whole sections (for
+        example the complete "brightness" object). Every write makes the
+        official integration for the display reload, so callers only write
+        changed values.
+        """
+        await self.rpc("Ui.SetConfig", {"config": config})
+
+    async def get_cpu_temperature(self) -> float | None:
+        """Return the CPU temperature in °C, None if not reported."""
+        result = await self.rpc("Sys.GetInternalTemperatures")
+        value = result.get("thermal-cpufreq-0")
+        return float(value) if isinstance(value, int | float) else None
+
+    async def set_volume(self, level: int) -> None:
+        """Set the media volume (0-10)."""
+        await self.rpc("Media.SetVolume", {"volume": level})
+
+    async def restart_app(self) -> None:
+        """Restart the display app (not the whole device)."""
+        await self.rpc("Sys.RestartApplication")
+
     async def get_motion_config(self) -> dict[str, Any]:
         """Return the motion sensor configuration."""
         return await self.rpc("Motion.GetConfig", {"id": 0})
@@ -227,3 +261,7 @@ class WallDisplayClient:
         call this when the value really changes.
         """
         await self.rpc("Motion.SetConfig", {"id": 0, "config": {"wake_screen": enabled}})
+
+
+def _int_or_none(value: Any) -> int | None:
+    return value if isinstance(value, int) and not isinstance(value, bool) else None

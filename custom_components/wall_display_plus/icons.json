@@ -6,11 +6,60 @@
         "state": {
           "off": "mdi:motion-sensor-off"
         }
+      },
+      "dim_screen": {
+        "default": "mdi:brightness-5"
+      },
+      "turn_screen_off": {
+        "default": "mdi:monitor-off"
+      },
+      "screen_saver": {
+        "default": "mdi:monitor-shimmer"
       }
     },
     "button": {
       "clear_cache": {
         "default": "mdi:delete-sweep"
+      },
+      "restart_app": {
+        "default": "mdi:restart"
+      }
+    },
+    "sensor": {
+      "memory_free": {
+        "default": "mdi:memory"
+      },
+      "storage_free": {
+        "default": "mdi:harddisk"
+      },
+      "cache_clips": {
+        "default": "mdi:playlist-music"
+      },
+      "cache_size": {
+        "default": "mdi:database"
+      },
+      "announcement_delay": {
+        "default": "mdi:timer-sand"
+      },
+      "cache_hit_rate": {
+        "default": "mdi:bullseye-arrow"
+      },
+      "app_started": {
+        "default": "mdi:application-cog"
+      }
+    },
+    "number": {
+      "minimum_brightness": {
+        "default": "mdi:brightness-4"
+      },
+      "dim_after": {
+        "default": "mdi:brightness-5"
+      },
+      "screen_off_after": {
+        "default": "mdi:monitor-off"
+      },
+      "screen_saver_after": {
+        "default": "mdi:monitor-shimmer"
       }
     }
   }

@@ -108,6 +108,13 @@ class Speaker:
         self._lock = asyncio.Lock()
         self._busy_until = 0.0
         self.playing_until = 0.0
+        # Volume to go back to after an announcement with its own volume
+        self._restore_volume: int | None = None
+        self._restore_task: asyncio.Task[None] | None = None
+        # Statistics since Home Assistant started (diagnostic sensors)
+        self.plays = 0
+        self.cache_hits = 0
+        self.last_delay: float | None = None
 
     @property
     def entries(self) -> dict[str, dict[str, str]]:
@@ -137,23 +144,39 @@ class Speaker:
         """Write the cache now (before the entry unloads)."""
         await self._store.async_save(self._data())
 
-    async def async_play(self, audio: ClipAudio) -> float:
+    @property
+    def cache_hit_rate(self) -> float | None:
+        """Return the share of plays that needed no upload, in percent."""
+        return round(100 * self.cache_hits / self.plays, 1) if self.plays else None
+
+    async def async_play(self, audio: ClipAudio, volume: int | None = None) -> float:
         """Play a clip; return its duration in seconds (0 when unknown).
 
         Clips are played one after another: a second announcement waits until
-        the first one has finished.
+        the first one has finished. With a volume (0-10), the display plays
+        the clip at that volume and goes back to the previous one afterwards.
         """
         async with self._lock:
             wait = self._busy_until - time.monotonic()
             if wait > 0:
                 await asyncio.sleep(wait)
+            # The previous clip has finished: its own volume is no longer needed
+            await self._restore_volume_now()
 
             item = await self._ensure_on_display(audio)
+            if volume is not None:
+                await self._set_volume_for_clip(volume)
             result = await self._client.play_alert(item.id)
+            self.plays += 1
             duration = result.duration
             now = time.monotonic()
             self._busy_until = now + duration + PLAYBACK_MARGIN
             self.playing_until = now + duration
+            if self._restore_volume is not None:
+                self._restore_task = self._hass.async_create_background_task(
+                    self._restore_volume_later(duration + PLAYBACK_MARGIN),
+                    f"{DOMAIN} restore volume",
+                )
 
             if audio.key is None:
                 # Not cached: delete it once it has been played.
@@ -175,6 +198,7 @@ class Speaker:
             if (entry := self._entries.get(audio.key)) and entry["filename"] == filename:
                 item = await self._client.find_media(filename, attempts=1)
                 if item is not None:
+                    self.cache_hits += 1
                     return item
                 _LOGGER.debug("Cached clip %s is gone from the display", filename)
         await self._make_room(audio)
@@ -187,6 +211,33 @@ class Speaker:
         if item is None:
             raise WallDisplayError(f"{filename} is not in the media library after the upload")
         return item
+
+    async def _set_volume_for_clip(self, volume: int) -> None:
+        """Set the volume for one clip and remember the one to go back to."""
+        playback = (await self._client.get_media_status()).get("playback") or {}
+        current = playback.get("volume")
+        if not isinstance(current, int) or current == volume:
+            return
+        await self._client.set_volume(volume)
+        self._restore_volume = current
+
+    async def _restore_volume_now(self) -> None:
+        if self._restore_task is not None:
+            self._restore_task.cancel()
+            self._restore_task = None
+        if self._restore_volume is None:
+            return
+        volume, self._restore_volume = self._restore_volume, None
+        try:
+            await self._client.set_volume(volume)
+        except WallDisplayError as err:
+            _LOGGER.debug("Could not restore the volume: %s", err)
+
+    async def _restore_volume_later(self, delay: float) -> None:
+        await asyncio.sleep(delay)
+        async with self._lock:
+            self._restore_task = None
+            await self._restore_volume_now()
 
     async def _make_room(self, audio: ClipAudio) -> None:
         """Keep the cache under its limit and enough storage free for the clip.

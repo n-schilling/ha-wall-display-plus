@@ -83,11 +83,63 @@
     "switch": {
       "motion_wakes_screen": {
         "name": "Bewegung weckt Bildschirm"
+      },
+      "dim_screen": {
+        "name": "Bildschirm dimmen bei Inaktivität"
+      },
+      "turn_screen_off": {
+        "name": "Bildschirm ausschalten bei Inaktivität"
+      },
+      "screen_saver": {
+        "name": "Bildschirmschoner"
       }
     },
     "button": {
       "clear_cache": {
         "name": "Lautsprecher-Cache leeren"
+      },
+      "restart_app": {
+        "name": "Display-App neu starten"
+      }
+    },
+    "sensor": {
+      "memory_free": {
+        "name": "Freier Arbeitsspeicher"
+      },
+      "storage_free": {
+        "name": "Freier Speicher"
+      },
+      "cpu_temperature": {
+        "name": "CPU-Temperatur"
+      },
+      "cache_clips": {
+        "name": "Gecachte Clips"
+      },
+      "cache_size": {
+        "name": "Cache-Größe"
+      },
+      "announcement_delay": {
+        "name": "Ansage-Verzögerung"
+      },
+      "cache_hit_rate": {
+        "name": "Cache-Trefferquote"
+      },
+      "app_started": {
+        "name": "App gestartet"
+      }
+    },
+    "number": {
+      "minimum_brightness": {
+        "name": "Minimale Helligkeit"
+      },
+      "dim_after": {
+        "name": "Dimmen nach"
+      },
+      "screen_off_after": {
+        "name": "Bildschirm aus nach"
+      },
+      "screen_saver_after": {
+        "name": "Bildschirmschoner nach"
       }
     }
   },
@@ -139,6 +191,12 @@
     },
     "text_too_long": {
       "message": "Der Text hat {length} Zeichen; dieser Lautsprecher erlaubt höchstens {max}."
+    },
+    "invalid_volume": {
+      "message": "Die Lautstärke {volume} ist ungültig; erlaubt ist eine Zahl von 0 bis 1."
+    },
+    "restart_failed": {
+      "message": "Die Display-App konnte nicht neu gestartet werden: {error}"
     }
   },
   "issues": {
