@@ -18,7 +18,7 @@ The official integration's media player only plays files that are already in the
 1. Home Assistant creates the audio: text to speech straight from the TTS engine, other media sources and URLs by download.
 2. The audio goes to the display's media library as an **alert** clip. Alert clips are separate from music: they do not show up in the music playlist or in the media browser of the official integration.
 3. The display plays the clip once.
-4. The clip stays on the display. The same announcement later starts at once, without creating and uploading it again. A clip is deleted when it was not played for 90 days (configurable). If a clip is gone from the display for whatever reason, it is uploaded again.
+4. The clip stays on the display, within a size limit (500 MB by default). The same announcement later starts at once, without creating and uploading it again. A clip is deleted when it was not played for 90 days (configurable). If a clip is gone from the display for whatever reason, it is uploaded again.
 
 Announcements play one after another; a second one waits for the first to finish.
 
@@ -54,6 +54,7 @@ The address and the password can be changed later with **Reconfigure**. If the d
 | Option | Default | Description |
 |---|---|---|
 | Keep clips for | 90 days | A cached clip is deleted from the display when it was not played for this many days (1–365). |
+| Maximum cache size | 500 MB | The cached clips may take at most this much storage on the display (10–10000 MB). When a new clip does not fit, the clips played longest ago are deleted first. A single clip larger than the limit is played once and not kept. |
 
 ## Entities and functions
 
@@ -134,6 +135,7 @@ actions:
 - **The TTS voice is not part of the cache.** After changing the voice, press **Clear speaker cache**; cached announcements keep the old voice until they expire otherwise.
 - **What can be played:** text to speech, media sources and absolute `http(s)` URLs that return audio, up to 20 MB. Paths of your Home Assistant instance such as `/api/...` are refused: they would be fetched with a signature, so anyone allowed to call `play_media` could copy protected data into the display's media library, which can be read without a password.
 - **The motion switch writes to the display only when the value changes.** Every write makes the official integration reload, and its entities are unavailable for a moment. Do not change the switch from an automation that triggers on those entities becoming available again: that is a loop.
+- **Storage:** before every upload the integration checks the display's free storage. At least 100 MB must stay free; if not, it first deletes its own clips (never photos, videos, music or ringtones). If that is not enough, the clip is not uploaded and a repair issue "storage almost full" appears.
 - **Undocumented interface:** the media upload uses the calls of the display's own web interface, which are not in the published API documentation. A firmware update can change them; the integration then shows a repair issue.
 - Discovery works over IPv4 only. It never moves a display with a password to a new address: anyone on the network can announce a display's name, and the login would go to that device. Use **Reconfigure** after an address change.
 
@@ -144,6 +146,7 @@ actions:
 | Nothing to hear | Check the volume of the display (official integration's media player) and that a Bluetooth speaker is not connected instead. |
 | Repair issue "the firmware does not support the speaker" | The firmware changed the interface. [Open an issue](https://github.com/n-schilling/ha-wall-display-plus/issues/new/choose) with model and firmware. The issue disappears once a clip plays again. |
 | Entities unavailable | The display is off or has a new address. Without a password, discovery picks up the new address; with a password, use **Reconfigure**. |
+| Repair issue "storage almost full" | Delete photos, videos or music in the display's web interface. The issue disappears once a clip plays again. |
 | "Unsupported media" or "not audio" | Only text to speech, media sources and http(s) URLs with audio can be played. |
 | Old voice after changing it | Press **Clear speaker cache**. |
 | Something else | Download the diagnostics from the integration's page (no password inside) and attach them to an issue. |

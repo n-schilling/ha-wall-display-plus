@@ -34,6 +34,7 @@ async def async_get_config_entry_diagnostics(
         "device": asdict(runtime.device),
         "state": asdict(runtime.coordinator.data) if runtime.coordinator.data else None,
         "cache_days": runtime.speaker.cache_days,
+        "cache_max_bytes": runtime.speaker.cache_max_bytes,
         "cache_entries": runtime.speaker.entries,
         "clips_on_display": library,
     }

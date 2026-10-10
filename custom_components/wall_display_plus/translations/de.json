@@ -62,10 +62,12 @@
     "step": {
       "init": {
         "data": {
-          "cache_days": "Clips aufbewahren für"
+          "cache_days": "Clips aufbewahren für",
+          "cache_max_mb": "Maximale Cache-Größe"
         },
         "data_description": {
-          "cache_days": "Ein gecachter Clip wird vom Display gelöscht, wenn er so viele Tage nicht abgespielt wurde."
+          "cache_days": "Ein gecachter Clip wird vom Display gelöscht, wenn er so viele Tage nicht abgespielt wurde.",
+          "cache_max_mb": "So viel Speicher dürfen die gecachten Clips auf dem Display höchstens belegen. Passt ein neuer Clip nicht mehr, werden die am längsten nicht abgespielten gelöscht."
         }
       }
     }
@@ -129,12 +131,19 @@
     },
     "update_failed": {
       "message": "Das Display konnte nicht gelesen werden: {error}"
+    },
+    "storage_full": {
+      "message": "Das Display hat zu wenig freien Speicher ({free_mb} MB) für den Clip."
     }
   },
   "issues": {
     "unsupported_firmware": {
       "title": "{title}: Firmware unterstützt den Lautsprecher nicht",
       "description": "Das Wall Display {title} ({model}, Firmware {firmware}) hat eine Methode abgelehnt, die der Lautsprecher braucht:\n\n`{error}`\n\nDer Lautsprecher funktioniert mit Firmware 2.8. Eine neuere Firmware hat die Schnittstelle vielleicht geändert. Bitte ein Issue mit Modell und Firmware eröffnen, damit die Integration angepasst werden kann. Der Hinweis verschwindet von selbst, sobald wieder ein Clip abgespielt wird."
+    },
+    "storage_full": {
+      "title": "{title}: Speicher fast voll",
+      "description": "Das Wall Display {title} hat nur noch {free_mb} MB freien Speicher. Ein Clip wird nur hochgeladen, wenn mindestens {reserve_mb} MB frei bleiben, und das Löschen der Clips dieser Integration hat nicht gereicht.\n\nFotos, Videos oder Musik in der Weboberfläche des Displays löschen. Der Hinweis verschwindet von selbst, sobald wieder ein Clip abgespielt wird."
     }
   }
 }

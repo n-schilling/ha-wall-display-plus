@@ -16,7 +16,7 @@ from homeassistant.data_entry_flow import FlowResultType
 from homeassistant.helpers.service_info.zeroconf import ZeroconfServiceInfo
 
 from custom_components.wall_display_plus.api import WallDisplayError
-from custom_components.wall_display_plus.const import CONF_CACHE_DAYS, DOMAIN
+from custom_components.wall_display_plus.const import CONF_CACHE_DAYS, CONF_CACHE_MAX_MB, DOMAIN
 
 from .conftest import HOST, MAC, FakeDisplay
 
@@ -113,12 +113,13 @@ async def test_options(hass: HomeAssistant, setup_entry: MockConfigEntry) -> Non
     """The cache duration can be changed and reaches the speaker."""
     result = await hass.config_entries.options.async_init(setup_entry.entry_id)
     result = await hass.config_entries.options.async_configure(
-        result["flow_id"], {CONF_CACHE_DAYS: 30}
+        result["flow_id"], {CONF_CACHE_DAYS: 30, CONF_CACHE_MAX_MB: 200}
     )
     assert result["type"] is FlowResultType.CREATE_ENTRY
     await hass.async_block_till_done()
-    assert setup_entry.options == {CONF_CACHE_DAYS: 30}
+    assert setup_entry.options == {CONF_CACHE_DAYS: 30, CONF_CACHE_MAX_MB: 200}
     assert setup_entry.runtime_data.speaker.cache_days == 30
+    assert setup_entry.runtime_data.speaker.cache_max_bytes == 200 * 1024 * 1024
 
 
 def _zeroconf(

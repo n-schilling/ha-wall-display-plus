@@ -35,8 +35,13 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.event import async_call_later
 
-from .api import WallDisplayAuthError, WallDisplayError, WallDisplayUnsupportedError
-from .const import DOMAIN, MEDIA_TYPE_ALERT
+from .api import (
+    WallDisplayAuthError,
+    WallDisplayError,
+    WallDisplayStorageError,
+    WallDisplayUnsupportedError,
+)
+from .const import DOMAIN, FREE_SPACE_RESERVE, MEDIA_TYPE_ALERT
 from .coordinator import WallDisplayConfigEntry
 from .entity import WallDisplayEntity
 from .speaker import ClipAudio, cache_key
@@ -62,6 +67,11 @@ async def async_setup_entry(
 def unsupported_issue_id(entry: WallDisplayConfigEntry) -> str:
     """Return the id of the repair issue for an incompatible firmware."""
     return f"unsupported_firmware_{entry.entry_id}"
+
+
+def storage_issue_id(entry: WallDisplayConfigEntry) -> str:
+    """Return the id of the repair issue for a display that is almost full."""
+    return f"storage_full_{entry.entry_id}"
 
 
 class WallDisplaySpeaker(WallDisplayEntity, MediaPlayerEntity):
@@ -111,6 +121,13 @@ class WallDisplaySpeaker(WallDisplayEntity, MediaPlayerEntity):
             raise HomeAssistantError(
                 translation_domain=DOMAIN, translation_key="invalid_auth"
             ) from err
+        except WallDisplayStorageError as err:
+            self._create_storage_issue(err)
+            raise HomeAssistantError(
+                translation_domain=DOMAIN,
+                translation_key="storage_full",
+                translation_placeholders={"free_mb": _mb(err.free)},
+            ) from err
         except WallDisplayUnsupportedError as err:
             self._create_unsupported_issue(str(err))
             raise HomeAssistantError(
@@ -125,6 +142,7 @@ class WallDisplaySpeaker(WallDisplayEntity, MediaPlayerEntity):
                 translation_placeholders={"error": str(err)},
             ) from err
         ir.async_delete_issue(self.hass, DOMAIN, unsupported_issue_id(self._entry))
+        ir.async_delete_issue(self.hass, DOMAIN, storage_issue_id(self._entry))
         self.async_write_ha_state()
         if self._end_listener:
             self._end_listener()
@@ -146,6 +164,21 @@ class WallDisplaySpeaker(WallDisplayEntity, MediaPlayerEntity):
                 "error": error,
             },
             learn_more_url="https://github.com/n-schilling/ha-wall-display-plus/issues",
+        )
+
+    def _create_storage_issue(self, err: WallDisplayStorageError) -> None:
+        ir.async_create_issue(
+            self.hass,
+            DOMAIN,
+            storage_issue_id(self._entry),
+            is_fixable=False,
+            severity=ir.IssueSeverity.WARNING,
+            translation_key="storage_full",
+            translation_placeholders={
+                "title": self._entry.title,
+                "free_mb": _mb(err.free),
+                "reserve_mb": _mb(FREE_SPACE_RESERVE),
+            },
         )
 
     async def async_will_remove_from_hass(self) -> None:
@@ -280,3 +313,8 @@ def _extension(url: str, mime_type: str) -> str:
     if guessed:
         return guessed.lstrip(".").replace("mpga", "mp3")
     return yarl.URL(url).suffix.lstrip(".") or "mp3"
+
+
+def _mb(size: int) -> str:
+    """Format bytes as megabytes for messages."""
+    return str(round(size / 1024 / 1024))

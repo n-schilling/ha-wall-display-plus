@@ -23,7 +23,17 @@ from homeassistant.helpers.selector import (
 from homeassistant.helpers.service_info.zeroconf import ZeroconfServiceInfo
 
 from .api import DeviceInfo, WallDisplayAuthError, WallDisplayClient, WallDisplayError
-from .const import CONF_CACHE_DAYS, DEFAULT_CACHE_DAYS, DOMAIN, MAX_CACHE_DAYS, MIN_CACHE_DAYS
+from .const import (
+    CONF_CACHE_DAYS,
+    CONF_CACHE_MAX_MB,
+    DEFAULT_CACHE_DAYS,
+    DEFAULT_CACHE_MAX_MB,
+    DOMAIN,
+    MAX_CACHE_DAYS,
+    MAX_CACHE_MAX_MB,
+    MIN_CACHE_DAYS,
+    MIN_CACHE_MAX_MB,
+)
 from .coordinator import WallDisplayConfigEntry
 
 PASSWORD_SELECTOR = TextSelector(TextSelectorConfig(type=TextSelectorType.PASSWORD))
@@ -246,19 +256,25 @@ class WallDisplayConfigFlow(ConfigFlow, domain=DOMAIN):
 
 
 class OptionsFlowHandler(OptionsFlowWithReload):
-    """How long clips stay cached."""
+    """How long clips stay cached and how much room they may take."""
 
     async def async_step_init(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         """Show the options."""
         if user_input is not None:
-            return self.async_create_entry(data={CONF_CACHE_DAYS: int(user_input[CONF_CACHE_DAYS])})
+            return self.async_create_entry(
+                data={
+                    CONF_CACHE_DAYS: int(user_input[CONF_CACHE_DAYS]),
+                    CONF_CACHE_MAX_MB: int(user_input[CONF_CACHE_MAX_MB]),
+                }
+            )
+        options = self.config_entry.options
         return self.async_show_form(
             step_id="init",
             data_schema=probatio.Schema(
                 {
                     probatio.Required(
                         CONF_CACHE_DAYS,
-                        default=self.config_entry.options.get(CONF_CACHE_DAYS, DEFAULT_CACHE_DAYS),
+                        default=options.get(CONF_CACHE_DAYS, DEFAULT_CACHE_DAYS),
                     ): NumberSelector(
                         NumberSelectorConfig(
                             min=MIN_CACHE_DAYS,
@@ -266,6 +282,18 @@ class OptionsFlowHandler(OptionsFlowWithReload):
                             step=1,
                             mode=NumberSelectorMode.BOX,
                             unit_of_measurement="d",
+                        )
+                    ),
+                    probatio.Required(
+                        CONF_CACHE_MAX_MB,
+                        default=options.get(CONF_CACHE_MAX_MB, DEFAULT_CACHE_MAX_MB),
+                    ): NumberSelector(
+                        NumberSelectorConfig(
+                            min=MIN_CACHE_MAX_MB,
+                            max=MAX_CACHE_MAX_MB,
+                            step=10,
+                            mode=NumberSelectorMode.BOX,
+                            unit_of_measurement="MB",
                         )
                     ),
                 }

@@ -8,6 +8,8 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 
 - Speaker media player: plays text to speech, media sources and audio URLs on the display's built-in speaker, as announcements. Audio is uploaded as an alert clip and played once.
 - Clip cache on the display: an announcement played before starts without a new upload. Clips not played for 90 days (configurable) are deleted; clips missing on the display are uploaded again. `extra: {cache: false}` plays a clip without keeping it.
+- Cache size limit, 500 MB by default (configurable): the clips played longest ago make room for new ones; a clip larger than the limit is played once and not kept.
+- Free storage check before every upload: at least 100 MB must stay free. Own clips are deleted first; if that is not enough, nothing is uploaded and a repair issue appears. Other files on the display are never touched.
 - Switch "Motion wakes screen", which writes to the display only when the value changes.
 - Button "Clear speaker cache".
 - Only audio is played: media sources and absolute http(s) URLs whose answer is audio. Paths of the Home Assistant instance are refused and never fetched with a signature.

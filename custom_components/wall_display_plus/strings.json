@@ -62,10 +62,12 @@
     "step": {
       "init": {
         "data": {
-          "cache_days": "Keep clips for"
+          "cache_days": "Keep clips for",
+          "cache_max_mb": "Maximum cache size"
         },
         "data_description": {
-          "cache_days": "A cached clip is deleted from the display when it was not played for this many days."
+          "cache_days": "A cached clip is deleted from the display when it was not played for this many days.",
+          "cache_max_mb": "The cached clips may take at most this much storage on the display. When a new clip does not fit, the clips played longest ago are deleted."
         }
       }
     }
@@ -129,12 +131,19 @@
     },
     "update_failed": {
       "message": "The display could not be read: {error}"
+    },
+    "storage_full": {
+      "message": "The display has too little free storage ({free_mb} MB) for the clip."
     }
   },
   "issues": {
     "unsupported_firmware": {
       "title": "{title}: the firmware does not support the speaker",
       "description": "The wall display {title} ({model}, firmware {firmware}) refused a method the speaker needs:\n\n`{error}`\n\nThe speaker works with firmware 2.8. A newer firmware may have changed the interface. Please open an issue with the model and firmware so the integration can be adapted. The issue disappears by itself once a clip plays again."
+    },
+    "storage_full": {
+      "title": "{title}: storage almost full",
+      "description": "The wall display {title} has only {free_mb} MB of free storage. A clip is only uploaded if at least {reserve_mb} MB stay free, and deleting the clips of this integration was not enough.\n\nDelete photos, videos or music in the display's web interface. The issue disappears by itself once a clip plays again."
     }
   }
 }

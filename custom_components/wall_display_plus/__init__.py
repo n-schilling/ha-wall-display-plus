@@ -13,7 +13,15 @@ from homeassistant.helpers.event import async_track_time_interval
 from homeassistant.helpers.storage import Store
 
 from .api import WallDisplayAuthError, WallDisplayClient, WallDisplayError
-from .const import CLEANUP_INTERVAL, CONF_CACHE_DAYS, DEFAULT_CACHE_DAYS, DOMAIN, STORAGE_VERSION
+from .const import (
+    CLEANUP_INTERVAL,
+    CONF_CACHE_DAYS,
+    CONF_CACHE_MAX_MB,
+    DEFAULT_CACHE_DAYS,
+    DEFAULT_CACHE_MAX_MB,
+    DOMAIN,
+    STORAGE_VERSION,
+)
 from .coordinator import RuntimeData, WallDisplayConfigEntry, WallDisplayCoordinator
 from .speaker import Speaker
 
@@ -48,7 +56,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: WallDisplayConfigEntry) 
     await coordinator.async_config_entry_first_refresh()
 
     speaker = Speaker(
-        hass, client, entry.entry_id, entry.options.get(CONF_CACHE_DAYS, DEFAULT_CACHE_DAYS)
+        hass,
+        client,
+        entry.entry_id,
+        entry.options.get(CONF_CACHE_DAYS, DEFAULT_CACHE_DAYS),
+        entry.options.get(CONF_CACHE_MAX_MB, DEFAULT_CACHE_MAX_MB) * 1024 * 1024,
     )
     await speaker.async_load()
 

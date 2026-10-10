@@ -44,6 +44,7 @@ class FakeDisplay:
         self.wake_screen = True
         self.motion_writes = 0
         self.clip_duration = 0.05
+        self.fs_free: int | None = 20 * 1024**3
         self._next_id = 10
         self.client_password: str | None = None
 
@@ -60,7 +61,7 @@ class FakeDisplay:
         assert item
         del self.library[item.id]
         self._next_id += 1
-        self.library[self._next_id] = MediaItem(self._next_id, filename, item.type)
+        self.library[self._next_id] = MediaItem(self._next_id, filename, item.type, item.size)
         return self._next_id
 
     # -- client API --
@@ -81,6 +82,7 @@ class FakeDisplay:
             firmware="2.8.2",
             app=self.app,
             auth_enabled=self.auth_enabled,
+            fs_free=self.fs_free,
         )
 
     async def rpc(self, method: str, params: dict[str, Any] | None = None, **_: Any) -> dict:
@@ -99,8 +101,10 @@ class FakeDisplay:
         if existing:
             del self.library[existing.id]
         self._next_id += 1
-        self.library[self._next_id] = MediaItem(self._next_id, filename, media_type)
+        self.library[self._next_id] = MediaItem(self._next_id, filename, media_type, len(data))
         self.uploads.append((filename, media_type, len(data)))
+        if self.fs_free is not None:
+            self.fs_free -= len(data)
 
     async def find_media(self, filename: str, attempts: int = 8) -> MediaItem | None:
         self._check_auth()
@@ -110,6 +114,8 @@ class FakeDisplay:
         self._check_auth()
         if media_id not in self.library:
             raise WallDisplayError("no such file")
+        if self.fs_free is not None:
+            self.fs_free += self.library[media_id].size
         del self.library[media_id]
         self.deleted.append(media_id)
 

@@ -5,6 +5,11 @@ speech: engine, message, language and options). The cache remembers the
 clip's file name on the display and when it was last played. Before playing,
 the display's media library is checked by file name; if the file is gone, the
 clip is uploaded again as if it had never been cached.
+
+Before every upload the speaker makes room: the clips of this integration may
+take at most cache_max_bytes, and the display must keep FREE_SPACE_RESERVE
+free. Orphaned clips go first, then the ones played longest ago. A single
+clip larger than the whole cache is played once and not kept.
 """
 
 from __future__ import annotations
@@ -21,8 +26,15 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.storage import Store
 from homeassistant.util import dt as dt_util
 
-from .api import MediaItem, WallDisplayClient, WallDisplayError
-from .const import CLIP_PREFIX, DOMAIN, MEDIA_TYPE_ALERT, PLAYBACK_MARGIN, STORAGE_VERSION
+from .api import MediaItem, WallDisplayClient, WallDisplayError, WallDisplayStorageError
+from .const import (
+    CLIP_PREFIX,
+    DOMAIN,
+    FREE_SPACE_RESERVE,
+    MEDIA_TYPE_ALERT,
+    PLAYBACK_MARGIN,
+    STORAGE_VERSION,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -63,11 +75,13 @@ class Speaker:
         client: WallDisplayClient,
         entry_id: str,
         cache_days: int,
+        cache_max_bytes: int,
     ) -> None:
         """Initialize the speaker."""
         self._hass = hass
         self._client = client
         self.cache_days = cache_days
+        self.cache_max_bytes = cache_max_bytes
         self._store: Store[dict[str, Any]] = Store(
             hass, STORAGE_VERSION, f"{DOMAIN}.{entry_id}.cache"
         )
@@ -127,20 +141,71 @@ class Speaker:
             return duration
 
     async def _ensure_on_display(self, audio: ClipAudio) -> MediaItem:
-        if audio.key is None:
-            filename = clip_filename(cache_key(f"uncached:{time.time_ns()}"), audio.extension)
-        else:
+        if audio.key is not None:
             filename = clip_filename(audio.key, audio.extension)
             if (entry := self._entries.get(audio.key)) and entry["filename"] == filename:
                 item = await self._client.find_media(filename, attempts=1)
                 if item is not None:
                     return item
                 _LOGGER.debug("Cached clip %s is gone from the display", filename)
+        await self._make_room(audio)
+        if audio.key is None:
+            filename = clip_filename(cache_key(f"uncached:{time.time_ns()}"), audio.extension)
+        else:
+            filename = clip_filename(audio.key, audio.extension)
         await self._client.upload(filename, MEDIA_TYPE_ALERT, audio.data)
         item = await self._client.find_media(filename)
         if item is None:
             raise WallDisplayError(f"{filename} is not in the media library after the upload")
         return item
+
+    async def _make_room(self, audio: ClipAudio) -> None:
+        """Keep the cache under its limit and enough storage free for the clip.
+
+        A cached clip larger than the whole cache is turned into an uncached
+        one (audio.key is cleared). Raises WallDisplayStorageError when even
+        after deleting every clip of this integration the display would have
+        less than FREE_SPACE_RESERVE left.
+        """
+        needed = len(audio.data)
+        if audio.key is not None and needed > self.cache_max_bytes:
+            _LOGGER.debug("Clip of %s bytes exceeds the cache limit, not caching it", needed)
+            audio.key = None
+
+        ours = [i for i in await self._client.list_media() if i.filename.startswith(CLIP_PREFIX)]
+        last_used = {e["filename"]: _parse(e.get("last_used")) for e in self._entries.values()}
+        oldest = datetime.min.replace(tzinfo=dt_util.UTC)
+        # Orphans (not in the cache) first, then the clip played longest ago
+        candidates = sorted(
+            ours, key=lambda i: (i.filename in last_used, last_used.get(i.filename, oldest))
+        )
+
+        if audio.key is not None:
+            used = sum(i.size for i in ours)
+            while candidates and used + needed > self.cache_max_bytes:
+                victim = candidates.pop(0)
+                if await self._evict(victim):
+                    used -= victim.size
+
+        free = (await self._client.get_device_info()).fs_free
+        if free is None:
+            return  # the firmware does not report it; nothing to check
+        while candidates and free - needed < FREE_SPACE_RESERVE:
+            victim = candidates.pop(0)
+            if await self._evict(victim):
+                free += victim.size
+        if free - needed < FREE_SPACE_RESERVE:
+            raise WallDisplayStorageError(free, needed)
+
+    async def _evict(self, item: MediaItem) -> bool:
+        """Delete one of our clips and forget it."""
+        if not await self._try_delete(item):
+            return False
+        for key in [k for k, e in self._entries.items() if e["filename"] == item.filename]:
+            del self._entries[key]
+        self._save()
+        _LOGGER.debug("Evicted %s (%s bytes) to make room", item.filename, item.size)
+        return True
 
     async def _delete_later(self, media_id: int, delay: float) -> None:
         await asyncio.sleep(delay)

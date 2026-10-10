@@ -37,6 +37,16 @@ class WallDisplayUnsupportedError(WallDisplayError):
     """The firmware does not know a method this integration relies on."""
 
 
+class WallDisplayStorageError(WallDisplayError):
+    """Too little free storage on the display for a clip."""
+
+    def __init__(self, free: int, needed: int) -> None:
+        """Remember how much was free and how much was needed (bytes)."""
+        super().__init__(f"{free} bytes free, {needed} bytes needed plus reserve")
+        self.free = free
+        self.needed = needed
+
+
 @dataclass(frozen=True, slots=True)
 class DeviceInfo:
     """What ``/shelly`` tells about the device."""
@@ -46,6 +56,7 @@ class DeviceInfo:
     firmware: str
     app: str
     auth_enabled: bool
+    fs_free: int | None = None  # bytes of free storage, None if not reported
 
     @property
     def is_wall_display(self) -> bool:
@@ -60,6 +71,7 @@ class MediaItem:
     id: int
     filename: str
     type: str
+    size: int = 0  # bytes, 0 if not reported
 
 
 @dataclass(frozen=True, slots=True)
@@ -93,6 +105,7 @@ class WallDisplayClient:
             firmware=str(data.get("ver", "")),
             app=str(data.get("app", "")),
             auth_enabled=bool(data.get("auth_en", False)),
+            fs_free=int(data["fs_free"]) if isinstance(data.get("fs_free"), int) else None,
         )
 
     async def rpc(
@@ -141,7 +154,12 @@ class WallDisplayClient:
         """Return all files in the media library."""
         result = await self.rpc("Media.List")
         return [
-            MediaItem(id=int(item["id"]), filename=str(item["filename"]), type=str(item["type"]))
+            MediaItem(
+                id=int(item["id"]),
+                filename=str(item["filename"]),
+                type=str(item.get("type", "")),
+                size=int(item.get("size") or 0),
+            )
             for item in result.get("list", [])
             if "id" in item and "filename" in item
         ]

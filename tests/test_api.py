@@ -40,6 +40,7 @@ class DisplayServer:
             "ver": "2.8.2",
             "app": "WallDisplayV2",
             "auth_en": False,
+            "fs_free": 23992492032,
         }
         self.list_delays = 0
         self.nonce = secrets.token_hex(8)
@@ -117,6 +118,7 @@ async def test_device_info(server, session) -> None:
     assert info.firmware == "2.8.2"
     assert info.is_wall_display
     assert not info.auth_enabled
+    assert info.fs_free == 23992492032
 
 
 @pytest.mark.parametrize("shelly", ["broken", "error"])
@@ -184,7 +186,7 @@ async def test_media_methods(server, session) -> None:
     twin.answers["Media.List"] = {
         "result": {
             "list": [
-                {"id": 3, "filename": "a.mp3", "type": "ALERT"},
+                {"id": 3, "filename": "a.mp3", "type": "ALERT", "size": 28355},
                 {"id": 4, "type": "AUDIO"},  # incomplete entries are skipped
             ]
         }
@@ -197,7 +199,7 @@ async def test_media_methods(server, session) -> None:
     client = WallDisplayClient(session, host, None)
 
     items = await client.list_media()
-    assert [(i.id, i.filename, i.type) for i in items] == [(3, "a.mp3", "ALERT")]
+    assert [(i.id, i.filename, i.type, i.size) for i in items] == [(3, "a.mp3", "ALERT", 28355)]
     assert (await client.find_media("a.mp3")).id == 3
     assert (await client.play_alert(3)).duration == pytest.approx(2.361)
     await client.delete_media(3)
