@@ -30,7 +30,7 @@ Announcements play one after another; a second one waits for the first to finish
 | Other wall displays with a speaker and firmware 2.8 or newer | Expected to work, not tested |
 | Wall displays without a speaker | Can be added, but there is nothing to hear |
 
-Requirements: Home Assistant 2026.10 or newer, and a text-to-speech engine for announcements (for example Piper).
+Requirements: Home Assistant 2026.10 or newer, and a text-to-speech engine for announcements, see [Text-to-speech engine](#text-to-speech-engine).
 
 ## Installation
 
@@ -55,6 +55,30 @@ The address and the password can be changed later with **Reconfigure**. If the d
 |---|---|---|
 | Keep clips for | 90 days | A cached clip is deleted from the display when it was not played for this many days (1–365). |
 | Maximum cache size | 500 MB | The cached clips may take at most this much storage on the display (10–10000 MB). When a new clip does not fit, the clips played longest ago are deleted first. A single clip larger than the limit is played once and not kept. |
+| Maximum text length | 500 characters | Longer texts are refused before the text-to-speech engine runs (50–5000). 500 characters are about 35 seconds of speech. |
+
+## Text-to-speech engine
+
+The integration plays what a text-to-speech engine produces; it does not speak itself. Any engine in Home Assistant works, for example **Piper** (local, as a Home Assistant app with the Wyoming integration), Home Assistant Cloud or Google Translate.
+
+**The voice is chosen in the engine, not here.** With Piper, the default voice is set in the Piper app's configuration. A single announcement can use another voice through the options of `tts.speak`:
+
+```yaml
+action: tts.speak
+target:
+  entity_id: tts.piper
+data:
+  media_player_entity_id: media_player.living_room_wall_display_speaker
+  message: The washing machine is done.
+  options:
+    voice: en_US-lessac-medium
+```
+
+Options such as the voice are part of the cache key, so another voice is another clip. A changed *default* voice is not visible to the integration: press **Clear speaker cache** afterwards.
+
+**How fast an announcement starts depends on the engine, the voice and the hardware.** A local engine runs on the Home Assistant host. As a rough guide: Piper with a German "medium" voice on a Raspberry Pi 5 created 6.5 seconds of speech in about 1 second. "high" voices sound better and take noticeably longer; "low" voices are faster. The upload to the display adds well under a second. A cached announcement skips both: it starts at once.
+
+To keep the host from long work by mistake, texts are limited to 500 characters (option *Maximum text length*). The limit applies to announcements through this speaker; answers of the voice assistant arrive as a stream without the text and are not limited.
 
 ## Entities and functions
 

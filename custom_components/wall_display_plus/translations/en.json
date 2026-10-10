@@ -63,11 +63,13 @@
       "init": {
         "data": {
           "cache_days": "Keep clips for",
-          "cache_max_mb": "Maximum cache size"
+          "cache_max_mb": "Maximum cache size",
+          "max_text_length": "Maximum text length"
         },
         "data_description": {
           "cache_days": "A cached clip is deleted from the display when it was not played for this many days.",
-          "cache_max_mb": "The cached clips may take at most this much storage on the display. When a new clip does not fit, the clips played longest ago are deleted."
+          "cache_max_mb": "The cached clips may take at most this much storage on the display. When a new clip does not fit, the clips played longest ago are deleted.",
+          "max_text_length": "Longer texts are refused before the text-to-speech engine runs, so a text pasted by mistake costs no computing time. 500 characters are about 35 seconds of speech."
         }
       }
     }
@@ -134,6 +136,9 @@
     },
     "storage_full": {
       "message": "The display has too little free storage ({free_mb} MB) for the clip."
+    },
+    "text_too_long": {
+      "message": "The text has {length} characters; this speaker allows at most {max}."
     }
   },
   "issues": {

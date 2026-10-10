@@ -9,12 +9,19 @@ DOMAIN: Final = "wall_display_plus"
 
 CONF_CACHE_DAYS: Final = "cache_days"
 CONF_CACHE_MAX_MB: Final = "cache_max_mb"
+CONF_MAX_TEXT_LENGTH: Final = "max_text_length"
 DEFAULT_CACHE_DAYS: Final = 90
 MIN_CACHE_DAYS: Final = 1
 MAX_CACHE_DAYS: Final = 365
 DEFAULT_CACHE_MAX_MB: Final = 500
 MIN_CACHE_MAX_MB: Final = 10
 MAX_CACHE_MAX_MB: Final = 10000
+# Longest text sent to the text-to-speech engine, in characters. It is checked
+# before the engine runs, so a text pasted by mistake costs no computing time.
+# 500 characters are about 35 s of speech.
+DEFAULT_MAX_TEXT_LENGTH: Final = 500
+MIN_MAX_TEXT_LENGTH: Final = 50
+MAX_MAX_TEXT_LENGTH: Final = 5000
 
 # An upload must leave at least this much storage free on the display.
 FREE_SPACE_RESERVE: Final = 100 * 1024 * 1024

@@ -11,6 +11,7 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 - Cache size limit, 500 MB by default (configurable): the clips played longest ago make room for new ones; a clip larger than the limit is played once and not kept.
 - Clip names `homeassistant_<tag>_<key>.<ext>` (at most 50 ASCII bytes; the firmware stores up to 250): the fixed prefix shows where a file comes from, the random tag per instance keeps several Home Assistant instances on one display apart. Clips of others are never touched.
 - Free storage check before every upload: at least 100 MB must stay free. Own clips are deleted first; if that is not enough, nothing is uploaded and a repair issue appears. Other files on the display are never touched.
+- Maximum text length for text to speech, 500 characters by default (configurable 50–5000): longer texts are refused before the engine runs, so a text pasted by mistake costs no computing time on the host.
 - Switch "Motion wakes screen", which writes to the display only when the value changes.
 - Button "Clear speaker cache".
 - Only audio is played: media sources and absolute http(s) URLs whose answer is audio. Paths of the Home Assistant instance are refused and never fetched with a signature.

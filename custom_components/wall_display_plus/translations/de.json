@@ -63,11 +63,13 @@
       "init": {
         "data": {
           "cache_days": "Clips aufbewahren für",
-          "cache_max_mb": "Maximale Cache-Größe"
+          "cache_max_mb": "Maximale Cache-Größe",
+          "max_text_length": "Maximale Textlänge"
         },
         "data_description": {
           "cache_days": "Ein gecachter Clip wird vom Display gelöscht, wenn er so viele Tage nicht abgespielt wurde.",
-          "cache_max_mb": "So viel Speicher dürfen die gecachten Clips auf dem Display höchstens belegen. Passt ein neuer Clip nicht mehr, werden die am längsten nicht abgespielten gelöscht."
+          "cache_max_mb": "So viel Speicher dürfen die gecachten Clips auf dem Display höchstens belegen. Passt ein neuer Clip nicht mehr, werden die am längsten nicht abgespielten gelöscht.",
+          "max_text_length": "Längere Texte werden abgelehnt, bevor die Sprachausgabe startet, damit ein versehentlich eingefügter Text keine Rechenzeit kostet. 500 Zeichen sind etwa 35 Sekunden Sprache."
         }
       }
     }
@@ -134,6 +136,9 @@
     },
     "storage_full": {
       "message": "Das Display hat zu wenig freien Speicher ({free_mb} MB) für den Clip."
+    },
+    "text_too_long": {
+      "message": "Der Text hat {length} Zeichen; dieser Lautsprecher erlaubt höchstens {max}."
     }
   },
   "issues": {

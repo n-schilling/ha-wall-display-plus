@@ -41,7 +41,13 @@ from .api import (
     WallDisplayStorageError,
     WallDisplayUnsupportedError,
 )
-from .const import DOMAIN, FREE_SPACE_RESERVE, MEDIA_TYPE_ALERT
+from .const import (
+    CONF_MAX_TEXT_LENGTH,
+    DEFAULT_MAX_TEXT_LENGTH,
+    DOMAIN,
+    FREE_SPACE_RESERVE,
+    MEDIA_TYPE_ALERT,
+)
 from .coordinator import WallDisplayConfigEntry
 from .entity import WallDisplayEntity
 from .speaker import ClipAudio
@@ -232,12 +238,23 @@ class WallDisplaySpeaker(WallDisplayEntity, MediaPlayerEntity):
         url = async_process_play_media_url(self.hass, item.url)
         return await self._async_fetch(url, key)
 
+    def _check_text_length(self, message: str) -> None:
+        """Refuse a text longer than allowed, before the engine runs."""
+        limit = int(self._entry.options.get(CONF_MAX_TEXT_LENGTH, DEFAULT_MAX_TEXT_LENGTH))
+        if len(message) > limit:
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="text_too_long",
+                translation_placeholders={"length": str(len(message)), "max": str(limit)},
+            )
+
     async def _async_get_tts_audio(self, media_id: str) -> ClipAudio:
         parsed = parse_media_source_id(media_id)
         key: str | None
         if "stream" in parsed:
             key = None  # a one-time stream, nothing to cache
         else:
+            self._check_text_length(parsed["message"])
             options: dict[str, Any] = dict(parsed["options"])
             options.pop("use_file_cache", None)
             key = self._entry.runtime_data.speaker.key_for(

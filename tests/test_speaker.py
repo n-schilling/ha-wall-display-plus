@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import timedelta
 from unittest.mock import AsyncMock, patch
+from urllib.parse import quote_plus
 
 import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry, async_fire_time_changed
@@ -17,7 +18,7 @@ from homeassistant.components.media_player import (
 )
 from homeassistant.const import ATTR_ENTITY_ID
 from homeassistant.core import HomeAssistant
-from homeassistant.exceptions import HomeAssistantError
+from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 from homeassistant.helpers import entity_registry as er
 from homeassistant.util import dt as dt_util
 
@@ -239,3 +240,39 @@ async def test_non_audio_download_is_refused(
     with pytest.raises(HomeAssistantError, match="not audio"):
         await _play(hass, "http://example.test/page")
     assert display.uploads == []
+
+
+def _tts_message(text: str) -> str:
+    return f"media-source://tts/tts.piper?message={quote_plus(text)}&language=de_DE"
+
+
+async def test_text_too_long_is_refused_before_the_engine_runs(
+    hass: HomeAssistant, display: FakeDisplay, setup_entry: MockConfigEntry, tts_audio
+) -> None:
+    """A text over the limit (default 500) never reaches the TTS engine."""
+    with pytest.raises(
+        ServiceValidationError, match="501 characters; this speaker allows at most 500"
+    ):
+        await _play(hass, _tts_message("x" * 501))
+    tts_audio.assert_not_called()
+    assert display.uploads == []
+
+
+async def test_text_at_the_limit_is_spoken(
+    hass: HomeAssistant, display: FakeDisplay, setup_entry: MockConfigEntry, tts_audio
+) -> None:
+    """Exactly the maximum length is fine; umlauts count as one character."""
+    await _play(hass, _tts_message("ä" * 500))
+    tts_audio.assert_called_once()
+
+
+async def test_text_limit_follows_the_option(
+    hass: HomeAssistant, display: FakeDisplay, setup_entry: MockConfigEntry, tts_audio
+) -> None:
+    """The limit comes from the options."""
+    hass.config_entries.async_update_entry(setup_entry, options={"max_text_length": 50})
+    await hass.async_block_till_done()
+    with pytest.raises(ServiceValidationError, match="at most 50"):
+        await _play(hass, _tts_message("x" * 51))
+    await _play(hass, _tts_message("x" * 50))
+    assert len(display.uploads) == 1

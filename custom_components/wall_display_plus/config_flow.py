@@ -26,13 +26,17 @@ from .api import DeviceInfo, WallDisplayAuthError, WallDisplayClient, WallDispla
 from .const import (
     CONF_CACHE_DAYS,
     CONF_CACHE_MAX_MB,
+    CONF_MAX_TEXT_LENGTH,
     DEFAULT_CACHE_DAYS,
     DEFAULT_CACHE_MAX_MB,
+    DEFAULT_MAX_TEXT_LENGTH,
     DOMAIN,
     MAX_CACHE_DAYS,
     MAX_CACHE_MAX_MB,
+    MAX_MAX_TEXT_LENGTH,
     MIN_CACHE_DAYS,
     MIN_CACHE_MAX_MB,
+    MIN_MAX_TEXT_LENGTH,
 )
 from .coordinator import WallDisplayConfigEntry
 
@@ -256,7 +260,7 @@ class WallDisplayConfigFlow(ConfigFlow, domain=DOMAIN):
 
 
 class OptionsFlowHandler(OptionsFlowWithReload):
-    """How long clips stay cached and how much room they may take."""
+    """Cache duration and size, and the longest text to speak."""
 
     async def async_step_init(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         """Show the options."""
@@ -265,6 +269,7 @@ class OptionsFlowHandler(OptionsFlowWithReload):
                 data={
                     CONF_CACHE_DAYS: int(user_input[CONF_CACHE_DAYS]),
                     CONF_CACHE_MAX_MB: int(user_input[CONF_CACHE_MAX_MB]),
+                    CONF_MAX_TEXT_LENGTH: int(user_input[CONF_MAX_TEXT_LENGTH]),
                 }
             )
         options = self.config_entry.options
@@ -294,6 +299,17 @@ class OptionsFlowHandler(OptionsFlowWithReload):
                             step=10,
                             mode=NumberSelectorMode.BOX,
                             unit_of_measurement="MB",
+                        )
+                    ),
+                    probatio.Required(
+                        CONF_MAX_TEXT_LENGTH,
+                        default=options.get(CONF_MAX_TEXT_LENGTH, DEFAULT_MAX_TEXT_LENGTH),
+                    ): NumberSelector(
+                        NumberSelectorConfig(
+                            min=MIN_MAX_TEXT_LENGTH,
+                            max=MAX_MAX_TEXT_LENGTH,
+                            step=10,
+                            mode=NumberSelectorMode.BOX,
                         )
                     ),
                 }
