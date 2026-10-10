@@ -199,3 +199,42 @@ async def test_cache_survives_restart(
     await hass.async_block_till_done()
     await _play(hass, TTS_HELLO)
     assert len(display.uploads) == 1
+
+
+async def test_relative_path_is_refused_and_not_signed(
+    hass: HomeAssistant, aioclient_mock, display: FakeDisplay, setup_entry: MockConfigEntry
+) -> None:
+    """A path of this instance is never fetched with a signature (no SSRF)."""
+    with (
+        patch(
+            "custom_components.wall_display_plus.media_player.async_process_play_media_url"
+        ) as sign,
+        pytest.raises(HomeAssistantError, match="Only text to speech"),
+    ):
+        await _play(hass, "/api/config/core/check_config")
+    sign.assert_not_called()
+    assert aioclient_mock.call_count == 0
+    assert display.uploads == []
+
+
+async def test_other_scheme_is_refused(
+    hass: HomeAssistant, display: FakeDisplay, setup_entry: MockConfigEntry
+) -> None:
+    """file:// and similar are refused."""
+    with pytest.raises(HomeAssistantError, match="Only text to speech"):
+        await _play(hass, "file:///config/secrets.yaml")
+    assert display.uploads == []
+
+
+async def test_non_audio_download_is_refused(
+    hass: HomeAssistant, aioclient_mock, display: FakeDisplay, setup_entry: MockConfigEntry
+) -> None:
+    """A URL that returns something else than audio is not uploaded."""
+    aioclient_mock.get(
+        "http://example.test/page",
+        content=b'{"secret": 1}',
+        headers={"Content-Type": "application/json"},
+    )
+    with pytest.raises(HomeAssistantError, match="not audio"):
+        await _play(hass, "http://example.test/page")
+    assert display.uploads == []

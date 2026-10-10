@@ -85,6 +85,12 @@
     },
     "clear_failed": {
       "message": "The clips could not be deleted: {error}"
+    },
+    "not_audio": {
+      "message": "The media is not audio."
+    },
+    "unsupported_media": {
+      "message": "Only text to speech, media sources and http(s) URLs can be played, not {media_id}."
     }
   }
 }

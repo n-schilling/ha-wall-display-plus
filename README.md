@@ -83,6 +83,7 @@ data:
 
 ## Good to know
 
+- **What can be played:** text to speech, media sources and absolute `http(s)` URLs that return audio. Paths of your Home Assistant instance such as `/api/...` are refused: they would be fetched with a signature, so anyone allowed to call `play_media` could copy protected data into the display's media library, which can be read without a password.
 - **Volume** is the display's current media volume. Set it with the official integration's media player.
 - **After changing the TTS voice**, press **Clear speaker cache**. Cached announcements keep the old voice until they expire otherwise.
 - **The motion switch writes to the display only when the value changes.** Every write makes the official integration reload, and its entities are unavailable for a moment. Do not change the switch from an automation that triggers on those entities becoming available again: that is a loop.

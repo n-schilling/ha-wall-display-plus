@@ -10,6 +10,7 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 - Clip cache on the display: an announcement played before starts without a new upload. Clips not played for 90 days (configurable) are deleted; clips missing on the display are uploaded again. `extra: {cache: false}` plays a clip without keeping it.
 - Switch "Motion wakes screen", which writes to the display only when the value changes.
 - Button "Clear speaker cache".
+- Only audio is played: media sources and absolute http(s) URLs whose answer is audio. Paths of the Home Assistant instance are refused and never fetched with a signature.
 - Setup by IP address with optional password, reconfiguration, re-authentication, diagnostics. English and German.
 
 [0.1.0]: https://github.com/n-schilling/ha-wall-display-plus/releases/tag/v0.1.0

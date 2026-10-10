@@ -85,6 +85,12 @@
     },
     "clear_failed": {
       "message": "Die Clips konnten nicht gelöscht werden: {error}"
+    },
+    "not_audio": {
+      "message": "Das Medium ist keine Audiodatei."
+    },
+    "unsupported_media": {
+      "message": "Abspielbar sind nur Sprachausgabe, Medienquellen und http(s)-URLs, nicht {media_id}."
     }
   }
 }

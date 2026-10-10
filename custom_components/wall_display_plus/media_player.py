@@ -126,8 +126,23 @@ class WallDisplaySpeaker(WallDisplayEntity, MediaPlayerEntity):
             if media_id.startswith(f"{media_source.URI_SCHEME}{tts.DOMAIN}/"):
                 return await self._async_get_tts_audio(media_id)
             item = await media_source.async_resolve_media(self.hass, media_id, self.entity_id)
-            return await self._async_fetch(item.url, item.mime_type, cache_key(media_id))
-        return await self._async_fetch(media_id, None, cache_key(media_id))
+            if not (item.mime_type or "").startswith("audio/"):
+                raise HomeAssistantError(translation_domain=DOMAIN, translation_key="not_audio")
+            # Media sources resolve to paths of this instance that may need a
+            # signature; only these are signed.
+            url = async_process_play_media_url(self.hass, item.url)
+            return await self._async_fetch(url, cache_key(media_id))
+        # Anything else must be a plain http(s) URL. It is fetched as given and
+        # never signed: signing would let any user who may call play_media
+        # read authenticated Home Assistant paths through the display.
+        parsed = yarl.URL(media_id)
+        if not parsed.is_absolute() or parsed.scheme not in ("http", "https"):
+            raise HomeAssistantError(
+                translation_domain=DOMAIN,
+                translation_key="unsupported_media",
+                translation_placeholders={"media_id": media_id},
+            )
+        return await self._async_fetch(media_id, cache_key(media_id))
 
     async def _async_get_tts_audio(self, media_id: str) -> ClipAudio:
         parsed = parse_media_source_id(media_id)
@@ -155,18 +170,20 @@ class WallDisplaySpeaker(WallDisplayEntity, MediaPlayerEntity):
             ) from err
         return ClipAudio(key=key, extension=extension, data=data)
 
-    async def _async_fetch(self, url: str, mime_type: str | None, key: str | None) -> ClipAudio:
-        url = async_process_play_media_url(self.hass, url)
+    async def _async_fetch(self, url: str, key: str | None) -> ClipAudio:
+        """Download audio; anything that is not audio is refused."""
         session = async_get_clientsession(self.hass)
         try:
             async with session.get(url, timeout=FETCH_TIMEOUT) as resp:
                 resp.raise_for_status()
+                mime_type = resp.content_type or ""
+                if not mime_type.startswith("audio/"):
+                    raise HomeAssistantError(translation_domain=DOMAIN, translation_key="not_audio")
                 if int(resp.headers.get("Content-Length") or 0) > MAX_CLIP_BYTES:
                     raise HomeAssistantError(
                         translation_domain=DOMAIN, translation_key="clip_too_large"
                     )
                 data = await resp.content.read(MAX_CLIP_BYTES + 1)
-                mime_type = mime_type or resp.content_type
         except (ClientError, TimeoutError) as err:
             raise HomeAssistantError(
                 translation_domain=DOMAIN,
