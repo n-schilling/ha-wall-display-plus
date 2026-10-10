@@ -22,27 +22,54 @@ The official integration's media player only plays files that are already in the
 
 Announcements play one after another; a second one waits for the first to finish.
 
-## Requirements
+## Supported devices
 
-- Home Assistant 2026.10 or newer
-- A wall display with a speaker, firmware 2.8 or newer. Tested with the Wall Display XL (SAWD-3A1XE10EU2) on firmware 2.8.2.
-- A text-to-speech engine for announcements, for example Piper.
+| Device | Status |
+|---|---|
+| Wall Display XL (SAWD-3A1XE10EU2), firmware 2.8.2 | Tested |
+| Other wall displays with a speaker and firmware 2.8 or newer | Expected to work, not tested |
+| Wall displays without a speaker | Can be added, but there is nothing to hear |
+
+Requirements: Home Assistant 2026.10 or newer, and a text-to-speech engine for announcements (for example Piper).
 
 ## Installation
 
 1. In HACS: **⋮ → Custom repositories**, add `https://github.com/n-schilling/ha-wall-display-plus` as type **Integration**.
 2. Install **Wall Display Plus** and restart Home Assistant.
-3. **Settings → Devices & services → Add integration → Wall Display Plus**, enter the display's IP address. A password is only needed if one is set on the display.
+3. Displays on the network are discovered and shown under **Settings → Devices & services**. Or add one by hand: **Add integration → Wall Display Plus**.
 
-## Entities
+### Installation parameters
+
+| Parameter | Description |
+|---|---|
+| Host | IP address or host name of the display. Discovered displays fill it in themselves, and a new address is picked up automatically. |
+| Password | Only if a password is set on the display (user `admin`, digest authentication). Leave empty otherwise. |
+
+The address and the password can be changed later with **Reconfigure**. If the display rejects the password, Home Assistant asks for the new one.
+
+### Configuration parameters
+
+**Settings → Devices & services → Wall Display Plus → Configure**:
+
+| Option | Default | Description |
+|---|---|---|
+| Keep clips for | 90 days | A cached clip is deleted from the display when it was not played for this many days (1–365). |
+
+## Entities and functions
 
 Since Home Assistant 2026.10 a device belongs to a single integration, so the entities get their own device next to the one of the official integration. Both carry the display's MAC address.
 
 | Entity | What it does |
 |---|---|
-| Speaker (`media_player`) | Plays text to speech, media sources and audio URLs as announcements. |
-| Motion wakes screen (`switch`) | Whether motion in front of the display wakes the screen. Touch always does. |
-| Clear speaker cache (`button`) | Deletes every clip this integration put on the display. |
+| Speaker (`media_player`) | Plays text to speech, media sources and audio URLs as announcements. Supports `tts.speak`, `media_player.play_media` (with `announce`), stop and media browsing (audio only). |
+| Motion wakes screen (`switch`, configuration) | Whether motion in front of the display wakes the screen. Touch always does. |
+| Clear speaker cache (`button`, configuration) | Deletes every clip this integration put on the display. |
+
+`media_player.play_media` accepts `extra: {cache: false}` to play a clip without keeping it.
+
+## Data updates
+
+The integration polls the display every 30 seconds for the motion setting and the media player status. Playing, the switch and the button act immediately. Old clips are cleaned up after each clip and once a day.
 
 ## Examples
 
@@ -81,25 +108,65 @@ data:
   media_content_id: https://example.com/doorbell.mp3
 ```
 
-## Good to know
+No motion wake-up at night:
 
-- **What can be played:** text to speech, media sources and absolute `http(s)` URLs that return audio. Paths of your Home Assistant instance such as `/api/...` are refused: they would be fetched with a signature, so anyone allowed to call `play_media` could copy protected data into the display's media library, which can be read without a password.
+```yaml
+triggers:
+  - trigger: time
+    at: "22:00:00"
+actions:
+  - action: switch.turn_off
+    target:
+      entity_id: switch.living_room_wall_display_motion_wakes_screen
+```
+
+## Use cases
+
+- Household announcements: washing machine, dishwasher, dryer done.
+- Reminders and warnings where people are: window open while it rains, door left open, high CO₂.
+- Doorbell or alarm sounds on the display in the living room.
+- Voice assistant answers on the display.
+- A dark display in the evening: motion does not wake it, touch still does.
+
+## Known limitations
+
 - **Volume** is the display's current media volume. Set it with the official integration's media player.
-- **After changing the TTS voice**, press **Clear speaker cache**. Cached announcements keep the old voice until they expire otherwise.
+- **The TTS voice is not part of the cache.** After changing the voice, press **Clear speaker cache**; cached announcements keep the old voice until they expire otherwise.
+- **What can be played:** text to speech, media sources and absolute `http(s)` URLs that return audio, up to 20 MB. Paths of your Home Assistant instance such as `/api/...` are refused: they would be fetched with a signature, so anyone allowed to call `play_media` could copy protected data into the display's media library, which can be read without a password.
 - **The motion switch writes to the display only when the value changes.** Every write makes the official integration reload, and its entities are unavailable for a moment. Do not change the switch from an automation that triggers on those entities becoming available again: that is a loop.
-- **Removing the integration** leaves the cached clips on the display. Press **Clear speaker cache** first.
-- **Undocumented interface:** the media upload uses the calls of the display's own web interface, which are not in the published API documentation. A firmware update can change them. The speaker then fails with a clear error; please [open an issue](https://github.com/n-schilling/ha-wall-display-plus/issues/new/choose) with the firmware version.
+- **Undocumented interface:** the media upload uses the calls of the display's own web interface, which are not in the published API documentation. A firmware update can change them; the integration then shows a repair issue.
+- Discovery works over IPv4 only.
+
+## Troubleshooting
+
+| Problem | What to do |
+|---|---|
+| Nothing to hear | Check the volume of the display (official integration's media player) and that a Bluetooth speaker is not connected instead. |
+| Repair issue "the firmware does not support the speaker" | The firmware changed the interface. [Open an issue](https://github.com/n-schilling/ha-wall-display-plus/issues/new/choose) with model and firmware. The issue disappears once a clip plays again. |
+| Entities unavailable | The display is off, asleep in a network sense or has a new address. A new address is picked up by discovery; otherwise use **Reconfigure**. |
+| "Unsupported media" or "not audio" | Only text to speech, media sources and http(s) URLs with audio can be played. |
+| Old voice after changing it | Press **Clear speaker cache**. |
+| Something else | Download the diagnostics from the integration's page (no password inside) and attach them to an issue. |
+
+## Removal
+
+1. Press **Clear speaker cache** to delete the clips from the display (removing the integration leaves them there).
+2. **Settings → Devices & services → Wall Display Plus → ⋮ → Delete**.
+3. Remove the integration in HACS and restart Home Assistant.
+
+The display's motion setting stays as it was last set.
 
 ## Development
 
 ```bash
 python3.14 -m venv .venv
 .venv/bin/pip install -r requirements_test.txt
-.venv/bin/pytest
+.venv/bin/pytest --cov=custom_components.wall_display_plus
 .venv/bin/ruff check . && .venv/bin/ruff format --check .
+.venv/bin/mypy custom_components
 ```
 
-The tests run against a display simulated in memory (`tests/conftest.py`).
+The tests run against a display simulated in memory (`tests/conftest.py`) and, for the RPC client, against a local HTTP twin with digest authentication (`tests/test_api.py`). The rules of the Home Assistant integration quality scale are tracked in [`quality_scale.yaml`](custom_components/wall_display_plus/quality_scale.yaml).
 
 ## Support
 

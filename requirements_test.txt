@@ -4,3 +4,5 @@ pytest-homeassistant-custom-component==0.13.371
 mutagen==1.48.1
 ha-ffmpeg==3.2.2
 ruff==0.16.10
+mypy==2.4.0
+pytest-cov==7.1.0

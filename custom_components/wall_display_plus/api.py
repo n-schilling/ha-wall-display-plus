@@ -20,6 +20,10 @@ from .const import AUTH_USER, UPLOAD_CHUNK_SIZE
 TIMEOUT = ClientTimeout(total=20)
 UPLOAD_TIMEOUT = ClientTimeout(total=60)
 
+# Firmware 2.8.2 answers an unknown method with -114 "Method not found!";
+# 404 is the code of the general Gen2 RPC protocol.
+METHOD_NOT_FOUND = (-114, 404)
+
 
 class WallDisplayError(Exception):
     """The display could not be reached or answered with an error."""
@@ -27,6 +31,10 @@ class WallDisplayError(Exception):
 
 class WallDisplayAuthError(WallDisplayError):
     """The display rejected the password."""
+
+
+class WallDisplayUnsupportedError(WallDisplayError):
+    """The firmware does not know a method this integration relies on."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -120,8 +128,11 @@ class WallDisplayClient:
             raise WallDisplayError(f"{method}: unexpected answer {answer!r}")
         if "error" in answer:
             error = answer["error"]
-            if isinstance(error, dict) and error.get("code") == 401:
+            code = error.get("code") if isinstance(error, dict) else None
+            if code == 401:
                 raise WallDisplayAuthError("The display rejected the password")
+            if code in METHOD_NOT_FOUND:
+                raise WallDisplayUnsupportedError(f"{method}: {error}")
             raise WallDisplayError(f"{method}: {error}")
         result = answer.get("result", {})
         return result if isinstance(result, dict) else {}

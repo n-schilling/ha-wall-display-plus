@@ -65,9 +65,15 @@ class WallDisplayCoordinator(DataUpdateCoordinator[DisplayState]):
             motion = await self.client.get_motion_config()
             media = await self.client.get_media_status()
         except WallDisplayAuthError as err:
-            raise ConfigEntryAuthFailed(str(err)) from err
+            raise ConfigEntryAuthFailed(
+                translation_domain=DOMAIN, translation_key="invalid_auth"
+            ) from err
         except WallDisplayError as err:
-            raise UpdateFailed(str(err)) from err
+            raise UpdateFailed(
+                translation_domain=DOMAIN,
+                translation_key="update_failed",
+                translation_placeholders={"error": str(err)},
+            ) from err
         wake = motion.get("wake_screen")
         return DisplayState(
             wake_screen=wake if isinstance(wake, bool) else None,

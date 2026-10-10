@@ -12,24 +12,30 @@ from aiohttp import ClientError, ClientTimeout
 import yarl
 
 from homeassistant.components import media_source, tts
-from homeassistant.components.media_player import (
-    ATTR_MEDIA_EXTRA,
+from homeassistant.components.media_player import MediaPlayerEntity
+from homeassistant.components.media_player.browse_media import (
     BrowseMedia,
+    async_process_play_media_url,
+)
+from homeassistant.components.media_player.const import (
+    ATTR_MEDIA_EXTRA,
     MediaPlayerDeviceClass,
-    MediaPlayerEntity,
     MediaPlayerEntityFeature,
     MediaPlayerState,
     MediaType,
-    async_process_play_media_url,
 )
+from homeassistant.components.media_source.const import URI_SCHEME
+from homeassistant.components.media_source.error import Unresolvable
+from homeassistant.components.tts.const import DOMAIN as TTS_DOMAIN
 from homeassistant.components.tts.media_source import parse_media_source_id
 from homeassistant.core import HomeAssistant
-from homeassistant.exceptions import HomeAssistantError
+from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
+from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.event import async_call_later
 
-from .api import WallDisplayError
+from .api import WallDisplayAuthError, WallDisplayError, WallDisplayUnsupportedError
 from .const import DOMAIN, MEDIA_TYPE_ALERT
 from .coordinator import WallDisplayConfigEntry
 from .entity import WallDisplayEntity
@@ -40,6 +46,7 @@ _LOGGER = logging.getLogger(__name__)
 MAX_CLIP_BYTES = 20 * 1024 * 1024
 FETCH_TIMEOUT = ClientTimeout(total=30)
 
+# Announcements are serialized by the speaker itself.
 PARALLEL_UPDATES = 0
 
 
@@ -50,6 +57,11 @@ async def async_setup_entry(
 ) -> None:
     """Set up the speaker."""
     async_add_entities([WallDisplaySpeaker(entry)])
+
+
+def unsupported_issue_id(entry: WallDisplayConfigEntry) -> str:
+    """Return the id of the repair issue for an incompatible firmware."""
+    return f"unsupported_firmware_{entry.entry_id}"
 
 
 class WallDisplaySpeaker(WallDisplayEntity, MediaPlayerEntity):
@@ -78,7 +90,7 @@ class WallDisplaySpeaker(WallDisplayEntity, MediaPlayerEntity):
         """Return playing while an alert clip plays."""
         if time.monotonic() < self._entry.runtime_data.speaker.playing_until:
             return MediaPlayerState.PLAYING
-        playback = (self.coordinator.data.media_status or {}).get("playback") or {}
+        playback = self.coordinator.data.media_status.get("playback") or {}
         if playback.get("enable") and playback.get("media_type") == MEDIA_TYPE_ALERT:
             return MediaPlayerState.PLAYING
         return MediaPlayerState.IDLE
@@ -94,16 +106,47 @@ class WallDisplaySpeaker(WallDisplayEntity, MediaPlayerEntity):
         speaker = self._entry.runtime_data.speaker
         try:
             duration = await speaker.async_play(audio)
+        except WallDisplayAuthError as err:
+            self._entry.async_start_reauth(self.hass)
+            raise HomeAssistantError(
+                translation_domain=DOMAIN, translation_key="invalid_auth"
+            ) from err
+        except WallDisplayUnsupportedError as err:
+            self._create_unsupported_issue(str(err))
+            raise HomeAssistantError(
+                translation_domain=DOMAIN,
+                translation_key="unsupported_firmware",
+                translation_placeholders={"error": str(err)},
+            ) from err
         except WallDisplayError as err:
             raise HomeAssistantError(
                 translation_domain=DOMAIN,
                 translation_key="play_failed",
                 translation_placeholders={"error": str(err)},
             ) from err
+        ir.async_delete_issue(self.hass, DOMAIN, unsupported_issue_id(self._entry))
         self.async_write_ha_state()
         if self._end_listener:
             self._end_listener()
         self._end_listener = async_call_later(self.hass, duration + 1, self._async_clip_ended)
+
+    def _create_unsupported_issue(self, error: str) -> None:
+        device = self._entry.runtime_data.device
+        ir.async_create_issue(
+            self.hass,
+            DOMAIN,
+            unsupported_issue_id(self._entry),
+            is_fixable=False,
+            severity=ir.IssueSeverity.ERROR,
+            translation_key="unsupported_firmware",
+            translation_placeholders={
+                "title": self._entry.title,
+                "model": device.model,
+                "firmware": device.firmware,
+                "error": error,
+            },
+            learn_more_url="https://github.com/n-schilling/ha-wall-display-plus/issues",
+        )
 
     async def async_will_remove_from_hass(self) -> None:
         """Cancel the pending end-of-clip callback."""
@@ -123,33 +166,44 @@ class WallDisplaySpeaker(WallDisplayEntity, MediaPlayerEntity):
     async def _async_get_audio(self, media_id: str) -> ClipAudio:
         """Turn what was asked to play into audio bytes and a cache key."""
         if media_source.is_media_source_id(media_id):
-            if media_id.startswith(f"{media_source.URI_SCHEME}{tts.DOMAIN}/"):
-                return await self._async_get_tts_audio(media_id)
-            item = await media_source.async_resolve_media(self.hass, media_id, self.entity_id)
-            if not (item.mime_type or "").startswith("audio/"):
-                raise HomeAssistantError(translation_domain=DOMAIN, translation_key="not_audio")
-            # Media sources resolve to paths of this instance that may need a
-            # signature; only these are signed.
-            url = async_process_play_media_url(self.hass, item.url)
-            return await self._async_fetch(url, cache_key(media_id))
+            if media_id.startswith(f"{URI_SCHEME}{TTS_DOMAIN}/"):
+                try:
+                    return await self._async_get_tts_audio(media_id)
+                except Unresolvable:
+                    # Not a message ID (for example a one-time stream of the
+                    # voice assistant): resolve it like any media source and
+                    # do not cache it.
+                    return await self._async_resolve_and_fetch(media_id, None)
+            return await self._async_resolve_and_fetch(media_id, cache_key(media_id))
         # Anything else must be a plain http(s) URL. It is fetched as given and
         # never signed: signing would let any user who may call play_media
         # read authenticated Home Assistant paths through the display.
         parsed = yarl.URL(media_id)
         if not parsed.is_absolute() or parsed.scheme not in ("http", "https"):
-            raise HomeAssistantError(
+            raise ServiceValidationError(
                 translation_domain=DOMAIN,
                 translation_key="unsupported_media",
                 translation_placeholders={"media_id": media_id},
             )
         return await self._async_fetch(media_id, cache_key(media_id))
 
+    async def _async_resolve_and_fetch(self, media_id: str, key: str | None) -> ClipAudio:
+        """Resolve a media source item and download it."""
+        item = await media_source.async_resolve_media(self.hass, media_id, self.entity_id)
+        if not (item.mime_type or "").startswith("audio/"):
+            raise ServiceValidationError(translation_domain=DOMAIN, translation_key="not_audio")
+        # Media sources resolve to paths of this instance that may need a
+        # signature; only these are signed.
+        url = async_process_play_media_url(self.hass, item.url)
+        return await self._async_fetch(url, key)
+
     async def _async_get_tts_audio(self, media_id: str) -> ClipAudio:
         parsed = parse_media_source_id(media_id)
+        key: str | None
         if "stream" in parsed:
             key = None  # a one-time stream, nothing to cache
         else:
-            options = dict(parsed["options"])
+            options: dict[str, Any] = dict(parsed["options"])
             options.pop("use_file_cache", None)
             key = cache_key(
                 json.dumps(
@@ -162,7 +216,7 @@ class WallDisplaySpeaker(WallDisplayEntity, MediaPlayerEntity):
             extension, data = await tts.async_get_media_source_audio(self.hass, media_id)
         except HomeAssistantError:
             raise
-        except Exception as err:  # the TTS engine can fail in many ways
+        except Exception as err:
             raise HomeAssistantError(
                 translation_domain=DOMAIN,
                 translation_key="tts_failed",
@@ -199,7 +253,11 @@ class WallDisplaySpeaker(WallDisplayEntity, MediaPlayerEntity):
         try:
             await self._entry.runtime_data.client.stop()
         except WallDisplayError as err:
-            raise HomeAssistantError(str(err)) from err
+            raise HomeAssistantError(
+                translation_domain=DOMAIN,
+                translation_key="stop_failed",
+                translation_placeholders={"error": str(err)},
+            ) from err
         self._entry.runtime_data.speaker.playing_until = 0
         self.async_write_ha_state()
 
@@ -216,11 +274,9 @@ class WallDisplaySpeaker(WallDisplayEntity, MediaPlayerEntity):
         )
 
 
-def _extension(url: str, mime_type: str | None) -> str:
+def _extension(url: str, mime_type: str) -> str:
     """Pick a file extension from the MIME type or the URL."""
-    if mime_type:
-        guessed = mimetypes.guess_extension(mime_type.split(";")[0].strip())
-        if guessed:
-            return guessed.lstrip(".").replace("mpga", "mp3")
-    suffix = yarl.URL(url).suffix.lstrip(".")
-    return suffix or "mp3"
+    guessed = mimetypes.guess_extension(mime_type.split(";")[0].strip()) if mime_type else None
+    if guessed:
+        return guessed.lstrip(".").replace("mpga", "mp3")
+    return yarl.URL(url).suffix.lstrip(".") or "mp3"

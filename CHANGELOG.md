@@ -11,6 +11,8 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 - Switch "Motion wakes screen", which writes to the display only when the value changes.
 - Button "Clear speaker cache".
 - Only audio is played: media sources and absolute http(s) URLs whose answer is audio. Paths of the Home Assistant instance are refused and never fetched with a signature.
-- Setup by IP address with optional password, reconfiguration, re-authentication, diagnostics. English and German.
+- Discovery of displays on the network (zeroconf); a known display with a new address is updated.
+- Setup by IP address with optional password (digest authentication), reconfiguration, re-authentication, diagnostics, a repair issue when the firmware no longer supports the speaker. English and German.
+- Checked against the Home Assistant integration quality scale up to platinum (`quality_scale.yaml`): strict typing, 99 % test coverage, translated errors, brand images.
 
 [0.1.0]: https://github.com/n-schilling/ha-wall-display-plus/releases/tag/v0.1.0

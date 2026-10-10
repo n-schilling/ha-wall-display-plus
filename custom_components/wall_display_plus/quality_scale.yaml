@@ -1,0 +1,93 @@
+# Integration quality scale, checked against the rules of Home Assistant 2026.10.
+# hassfest only validates this file for core integrations; it documents the
+# state of this custom integration rule by rule.
+rules:
+  # Bronze
+  action-setup:
+    status: exempt
+    comment: The integration registers no actions of its own.
+  appropriate-polling: done
+  brands:
+    status: done
+    comment: Brand images ship in brand/ (served locally since Home Assistant 2026.x).
+  common-modules: done
+  config-flow: done
+  config-flow-test-coverage: done
+  dependency-transparency:
+    status: exempt
+    comment: >-
+      No third-party requirement. The RPC client is part of the integration
+      (api.py) and uses only aiohttp from Home Assistant.
+  docs-actions:
+    status: exempt
+    comment: No actions of its own; the README documents the media player actions it supports.
+  docs-conditions:
+    status: exempt
+    comment: No conditions.
+  docs-high-level-description: done
+  docs-installation-instructions: done
+  docs-removal-instructions: done
+  docs-triggers:
+    status: exempt
+    comment: No triggers.
+  entity-event-setup: done
+  entity-unique-id: done
+  has-entity-name: done
+  runtime-data: done
+  test-before-configure: done
+  test-before-setup: done
+  unique-config-entry: done
+
+  # Silver
+  action-exceptions: done
+  config-entry-unloading: done
+  docs-configuration-parameters: done
+  docs-installation-parameters: done
+  entity-unavailable: done
+  integration-owner: done
+  log-when-unavailable: done
+  parallel-updates: done
+  reauthentication-flow: done
+  test-coverage: done
+
+  # Gold
+  devices: done
+  diagnostics: done
+  discovery: done
+  discovery-update-info: done
+  docs-data-update: done
+  docs-examples: done
+  docs-known-limitations: done
+  docs-supported-devices: done
+  docs-supported-functions: done
+  docs-troubleshooting: done
+  docs-use-cases: done
+  dynamic-devices:
+    status: exempt
+    comment: One config entry is exactly one display; no devices appear later.
+  entity-category: done
+  entity-device-class: done
+  entity-disabled-by-default:
+    status: done
+    comment: >-
+      Reviewed: all three entities are core functions. The cache button stays
+      enabled because it is needed before removing the integration.
+  entity-translations: done
+  exception-translations: done
+  icon-translations: done
+  reconfiguration-flow: done
+  repair-issues: done
+  stale-devices:
+    status: exempt
+    comment: One config entry is exactly one display; removing the entry removes the device.
+
+  # Platinum
+  async-dependency:
+    status: done
+    comment: The client in api.py is asyncio-based.
+  inject-websession:
+    status: done
+    comment: The client receives Home Assistant's shared aiohttp session.
+  strict-typing:
+    status: done
+    comment: mypy --strict runs in CI (mypy.ini).

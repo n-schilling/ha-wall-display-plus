@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-import logging
+import re
 from typing import Any
 
-import voluptuous as vol
+import probatio
 
 from homeassistant.config_entries import ConfigFlow, ConfigFlowResult, OptionsFlowWithReload
 from homeassistant.const import CONF_HOST, CONF_PASSWORD
@@ -20,14 +20,16 @@ from homeassistant.helpers.selector import (
     TextSelectorConfig,
     TextSelectorType,
 )
+from homeassistant.helpers.service_info.zeroconf import ZeroconfServiceInfo
 
 from .api import DeviceInfo, WallDisplayAuthError, WallDisplayClient, WallDisplayError
 from .const import CONF_CACHE_DAYS, DEFAULT_CACHE_DAYS, DOMAIN, MAX_CACHE_DAYS, MIN_CACHE_DAYS
 from .coordinator import WallDisplayConfigEntry
 
-_LOGGER = logging.getLogger(__name__)
-
 PASSWORD_SELECTOR = TextSelector(TextSelectorConfig(type=TextSelectorType.PASSWORD))
+
+# The display announces itself as "ShellyWallDisplay-<MAC>._shelly._tcp.local."
+ZEROCONF_NAME = re.compile(r"^[^-]+-([0-9a-f]{12})\.", re.IGNORECASE)
 
 
 class CannotConnect(Exception):
@@ -42,10 +44,22 @@ class InvalidAuth(Exception):
     """A password is needed or it is wrong."""
 
 
+def _connection_schema() -> probatio.Schema:
+    return probatio.Schema(
+        {
+            probatio.Required(CONF_HOST): str,
+            probatio.Optional(CONF_PASSWORD): PASSWORD_SELECTOR,
+        }
+    )
+
+
 class WallDisplayConfigFlow(ConfigFlow, domain=DOMAIN):
     """Add a wall display."""
 
     VERSION = 1
+
+    _discovered_host: str = ""
+    _discovered_name: str = ""
 
     async def _async_validate(self, host: str, password: str | None) -> tuple[DeviceInfo, str]:
         """Check the device; return its information and a title."""
@@ -64,7 +78,7 @@ class WallDisplayConfigFlow(ConfigFlow, domain=DOMAIN):
             raise InvalidAuth from err
         except WallDisplayError as err:
             raise CannotConnect from err
-        name = (sys_config.get("device") or {}).get("name") or f"Wall display {host}"
+        name = str((sys_config.get("device") or {}).get("name") or f"Wall display {host}")
         return device, name
 
     async def _async_try(
@@ -95,15 +109,58 @@ class WallDisplayConfigFlow(ConfigFlow, domain=DOMAIN):
                 )
         return self.async_show_form(
             step_id="user",
-            data_schema=self.add_suggested_values_to_schema(
-                vol.Schema(
-                    {
-                        vol.Required(CONF_HOST): str,
-                        vol.Optional(CONF_PASSWORD): PASSWORD_SELECTOR,
-                    }
-                ),
-                user_input,
-            ),
+            data_schema=self.add_suggested_values_to_schema(_connection_schema(), user_input),
+            errors=errors,
+        )
+
+    async def async_step_zeroconf(self, discovery_info: ZeroconfServiceInfo) -> ConfigFlowResult:
+        """A wall display announced itself on the network."""
+        if discovery_info.ip_address.version == 6:
+            return self.async_abort(reason="ipv6_not_supported")
+        host = discovery_info.host
+        if match := ZEROCONF_NAME.match(discovery_info.name):
+            # Known display with a new address: take the address, no connection needed
+            await self.async_set_unique_id(match.group(1).lower())
+            self._abort_if_unique_id_configured(updates={CONF_HOST: host})
+        name = discovery_info.name.split(".")[0]
+        try:
+            device, name = await self._async_validate(host, None)
+        except CannotConnect:
+            return self.async_abort(reason="cannot_connect")
+        except NotAWallDisplay:
+            return self.async_abort(reason="not_wall_display")
+        except InvalidAuth:
+            pass  # the password is asked for in the next step
+        else:
+            await self.async_set_unique_id(device.mac)
+            self._abort_if_unique_id_configured(updates={CONF_HOST: host})
+        self._discovered_host = host
+        self._discovered_name = name
+        self.context["title_placeholders"] = {"name": name}
+        return await self.async_step_zeroconf_confirm()
+
+    async def async_step_zeroconf_confirm(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Confirm a discovered display; ask for the password if it has one."""
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            password = user_input.get(CONF_PASSWORD) or None
+            if result := await self._async_try(self._discovered_host, password, errors):
+                device, name = result
+                await self.async_set_unique_id(device.mac)
+                self._abort_if_unique_id_configured(updates={CONF_HOST: self._discovered_host})
+                return self.async_create_entry(
+                    title=name,
+                    data={CONF_HOST: self._discovered_host, CONF_PASSWORD: password},
+                )
+        return self.async_show_form(
+            step_id="zeroconf_confirm",
+            data_schema=probatio.Schema({probatio.Optional(CONF_PASSWORD): PASSWORD_SELECTOR}),
+            description_placeholders={
+                "name": self._discovered_name,
+                "host": self._discovered_host,
+            },
             errors=errors,
         )
 
@@ -125,13 +182,7 @@ class WallDisplayConfigFlow(ConfigFlow, domain=DOMAIN):
         return self.async_show_form(
             step_id="reconfigure",
             data_schema=self.add_suggested_values_to_schema(
-                vol.Schema(
-                    {
-                        vol.Required(CONF_HOST): str,
-                        vol.Optional(CONF_PASSWORD): PASSWORD_SELECTOR,
-                    }
-                ),
-                {CONF_HOST: entry.data[CONF_HOST]},
+                _connection_schema(), {CONF_HOST: entry.data[CONF_HOST]}
             ),
             errors=errors,
         )
@@ -154,7 +205,7 @@ class WallDisplayConfigFlow(ConfigFlow, domain=DOMAIN):
                 )
         return self.async_show_form(
             step_id="reauth_confirm",
-            data_schema=vol.Schema({vol.Optional(CONF_PASSWORD): PASSWORD_SELECTOR}),
+            data_schema=probatio.Schema({probatio.Optional(CONF_PASSWORD): PASSWORD_SELECTOR}),
             description_placeholders={"host": entry.data[CONF_HOST]},
             errors=errors,
         )
@@ -175,9 +226,9 @@ class OptionsFlowHandler(OptionsFlowWithReload):
             return self.async_create_entry(data={CONF_CACHE_DAYS: int(user_input[CONF_CACHE_DAYS])})
         return self.async_show_form(
             step_id="init",
-            data_schema=vol.Schema(
+            data_schema=probatio.Schema(
                 {
-                    vol.Required(
+                    probatio.Required(
                         CONF_CACHE_DAYS,
                         default=self.config_entry.options.get(CONF_CACHE_DAYS, DEFAULT_CACHE_DAYS),
                     ): NumberSelector(

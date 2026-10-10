@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 import logging
 
 from homeassistant.const import CONF_HOST, CONF_PASSWORD, Platform
@@ -31,10 +32,16 @@ async def async_setup_entry(hass: HomeAssistant, entry: WallDisplayConfigEntry) 
     try:
         device = await client.get_device_info()
     except WallDisplayError as err:
-        raise ConfigEntryNotReady(str(err)) from err
+        raise ConfigEntryNotReady(
+            translation_domain=DOMAIN,
+            translation_key="cannot_connect",
+            translation_placeholders={"host": entry.data[CONF_HOST], "error": str(err)},
+        ) from err
     if entry.unique_id and device.mac != entry.unique_id:
         raise ConfigEntryNotReady(
-            f"{entry.data[CONF_HOST]} is now a different device ({device.mac})"
+            translation_domain=DOMAIN,
+            translation_key="wrong_device",
+            translation_placeholders={"host": entry.data[CONF_HOST], "mac": device.mac},
         )
 
     coordinator = WallDisplayCoordinator(hass, entry, client)
@@ -50,7 +57,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: WallDisplayConfigEntry) 
     )
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
-    async def _cleanup(_now=None) -> None:
+    async def _cleanup(_now: datetime | None = None) -> None:
         try:
             deleted = await speaker.async_cleanup()
         except WallDisplayAuthError:

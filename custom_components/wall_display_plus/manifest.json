@@ -1,14 +1,26 @@
 {
   "domain": "wall_display_plus",
   "name": "Wall Display Plus",
-  "after_dependencies": ["tts"],
-  "codeowners": ["@n-schilling"],
+  "after_dependencies": [
+    "tts"
+  ],
+  "codeowners": [
+    "@n-schilling"
+  ],
   "config_flow": true,
-  "dependencies": ["media_source"],
+  "dependencies": [
+    "media_source"
+  ],
   "documentation": "https://github.com/n-schilling/ha-wall-display-plus",
   "integration_type": "device",
   "iot_class": "local_polling",
   "issue_tracker": "https://github.com/n-schilling/ha-wall-display-plus/issues",
   "requirements": [],
-  "version": "0.1.0"
+  "version": "0.1.0",
+  "zeroconf": [
+    {
+      "type": "_shelly._tcp.local.",
+      "name": "shellywalldisplay*"
+    }
+  ]
 }

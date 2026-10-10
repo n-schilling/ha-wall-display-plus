@@ -19,6 +19,7 @@ async def async_get_config_entry_diagnostics(
 ) -> dict[str, Any]:
     """Return what helps to understand a problem, without the password."""
     runtime = entry.runtime_data
+    library: list[dict[str, Any]] | str
     try:
         library = [
             asdict(item)
@@ -26,7 +27,7 @@ async def async_get_config_entry_diagnostics(
             if item.filename.startswith(CLIP_PREFIX)
         ]
     except WallDisplayError as err:
-        library = [f"unavailable: {err}"]
+        library = f"unavailable: {err}"
     return {
         "entry": async_redact_data(dict(entry.data), {CONF_PASSWORD}),
         "options": dict(entry.options),

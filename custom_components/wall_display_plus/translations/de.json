@@ -17,12 +17,28 @@
         "data": {
           "host": "Host",
           "password": "Passwort"
+        },
+        "data_description": {
+          "host": "IP-Adresse oder Hostname des Displays, zum Beispiel 192.168.1.50.",
+          "password": "Leer lassen, wenn das Display kein Passwort hat."
         }
       },
       "reauth_confirm": {
         "description": "Das Display unter {host} hat das Passwort abgelehnt. Bitte das aktuelle eingeben.",
         "data": {
           "password": "Passwort"
+        },
+        "data_description": {
+          "password": "Das am Display gesetzte Passwort."
+        }
+      },
+      "zeroconf_confirm": {
+        "description": "Das Wall Display {name} unter {host} hinzufügen? Das Passwort ist nur nötig, wenn am Display eines gesetzt ist.",
+        "data": {
+          "password": "Passwort"
+        },
+        "data_description": {
+          "password": "Leer lassen, wenn das Display kein Passwort hat."
         }
       }
     },
@@ -35,8 +51,12 @@
       "already_configured": "Dieses Display ist bereits eingerichtet.",
       "reauth_successful": "Das Passwort wurde aktualisiert.",
       "reconfigure_successful": "Das Display wurde aktualisiert.",
-      "wrong_device": "Unter dieser Adresse ist ein anderes Display."
-    }
+      "wrong_device": "Unter dieser Adresse ist ein anderes Display.",
+      "cannot_connect": "Das Display antwortet nicht.",
+      "not_wall_display": "Dieses Gerät ist kein Wall Display.",
+      "ipv6_not_supported": "Erkennung über IPv6 wird nicht unterstützt; das Display über seine IPv4-Adresse hinzufügen."
+    },
+    "flow_title": "{name}"
   },
   "options": {
     "step": {
@@ -91,6 +111,30 @@
     },
     "unsupported_media": {
       "message": "Abspielbar sind nur Sprachausgabe, Medienquellen und http(s)-URLs, nicht {media_id}."
+    },
+    "invalid_auth": {
+      "message": "Das Display hat das Passwort abgelehnt."
+    },
+    "unsupported_firmware": {
+      "message": "Die Firmware des Displays unterstützt eine benötigte Methode nicht: {error}"
+    },
+    "stop_failed": {
+      "message": "Der Clip konnte nicht gestoppt werden: {error}"
+    },
+    "cannot_connect": {
+      "message": "Das Display unter {host} antwortet nicht: {error}"
+    },
+    "wrong_device": {
+      "message": "Unter der Adresse {host} ist jetzt ein anderes Display ({mac}). Die Adresse in den Einstellungen der Integration ändern."
+    },
+    "update_failed": {
+      "message": "Das Display konnte nicht gelesen werden: {error}"
+    }
+  },
+  "issues": {
+    "unsupported_firmware": {
+      "title": "{title}: Firmware unterstützt den Lautsprecher nicht",
+      "description": "Das Wall Display {title} ({model}, Firmware {firmware}) hat eine Methode abgelehnt, die der Lautsprecher braucht:\n\n`{error}`\n\nDer Lautsprecher funktioniert mit Firmware 2.8. Eine neuere Firmware hat die Schnittstelle vielleicht geändert. Bitte ein Issue mit Modell und Firmware eröffnen, damit die Integration angepasst werden kann. Der Hinweis verschwindet von selbst, sobald wieder ein Clip abgespielt wird."
     }
   }
 }

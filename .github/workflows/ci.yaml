@@ -65,5 +65,8 @@ jobs:
           python-version: "3.14"
       - name: Install
         run: pip install -r requirements_test.txt
+      - name: Strict typing
+        run: mypy custom_components
       - name: Test
-        run: pytest -v
+        # Silver of the quality scale asks for more than 95 % test coverage
+        run: pytest -v --cov=custom_components.wall_display_plus --cov-report=term-missing --cov-fail-under=95

@@ -194,5 +194,8 @@ class Speaker:
 
 
 def _parse(value: str | None) -> datetime:
+    """Parse a stored timestamp; one without time zone counts as UTC."""
     parsed = dt_util.parse_datetime(value) if value else None
-    return parsed or datetime.min.replace(tzinfo=dt_util.UTC)
+    if parsed is None:
+        return datetime.min.replace(tzinfo=dt_util.UTC)
+    return parsed if parsed.tzinfo else parsed.replace(tzinfo=dt_util.UTC)

@@ -17,12 +17,28 @@
         "data": {
           "host": "Host",
           "password": "Password"
+        },
+        "data_description": {
+          "host": "IP address or host name of the display, for example 192.168.1.50.",
+          "password": "Leave empty if the display has no password."
         }
       },
       "reauth_confirm": {
         "description": "The display at {host} rejected the password. Enter the current one.",
         "data": {
           "password": "Password"
+        },
+        "data_description": {
+          "password": "The password set on the display."
+        }
+      },
+      "zeroconf_confirm": {
+        "description": "Add the wall display {name} at {host}? The password is only needed if one is set on the display.",
+        "data": {
+          "password": "Password"
+        },
+        "data_description": {
+          "password": "Leave empty if the display has no password."
         }
       }
     },
@@ -35,8 +51,12 @@
       "already_configured": "This display is already set up.",
       "reauth_successful": "The password was updated.",
       "reconfigure_successful": "The display was updated.",
-      "wrong_device": "This address belongs to a different display."
-    }
+      "wrong_device": "This address belongs to a different display.",
+      "cannot_connect": "The display does not answer.",
+      "not_wall_display": "This device is not a wall display.",
+      "ipv6_not_supported": "Discovery over IPv6 is not supported; add the display by its IPv4 address."
+    },
+    "flow_title": "{name}"
   },
   "options": {
     "step": {
@@ -91,6 +111,30 @@
     },
     "unsupported_media": {
       "message": "Only text to speech, media sources and http(s) URLs can be played, not {media_id}."
+    },
+    "invalid_auth": {
+      "message": "The display rejected the password."
+    },
+    "unsupported_firmware": {
+      "message": "The display's firmware does not support a method this integration needs: {error}"
+    },
+    "stop_failed": {
+      "message": "The clip could not be stopped: {error}"
+    },
+    "cannot_connect": {
+      "message": "The display at {host} does not answer: {error}"
+    },
+    "wrong_device": {
+      "message": "The address {host} now belongs to a different display ({mac}). Change the address in the integration's settings."
+    },
+    "update_failed": {
+      "message": "The display could not be read: {error}"
+    }
+  },
+  "issues": {
+    "unsupported_firmware": {
+      "title": "{title}: the firmware does not support the speaker",
+      "description": "The wall display {title} ({model}, firmware {firmware}) refused a method the speaker needs:\n\n`{error}`\n\nThe speaker works with firmware 2.8. A newer firmware may have changed the interface. Please open an issue with the model and firmware so the integration can be adapted. The issue disappears by itself once a clip plays again."
     }
   }
 }
