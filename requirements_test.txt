@@ -1,0 +1,6 @@
+# Test harness pinned to the Home Assistant release the integration is tested against
+pytest-homeassistant-custom-component==0.13.371
+# Requirements of the core integrations this one uses (tts, ffmpeg)
+mutagen==1.48.1
+ha-ffmpeg==3.2.2
+ruff==0.16.10

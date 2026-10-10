@@ -1,0 +1,90 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "description": "Add a wall display by its IP address or host name. The password is only needed if one is set on the display.",
+        "data": {
+          "host": "Host",
+          "password": "Password"
+        },
+        "data_description": {
+          "host": "IP address or host name of the display, for example 192.168.1.50.",
+          "password": "Leave empty if the display has no password."
+        }
+      },
+      "reconfigure": {
+        "description": "Change the address or the password of the display.",
+        "data": {
+          "host": "Host",
+          "password": "Password"
+        }
+      },
+      "reauth_confirm": {
+        "description": "The display at {host} rejected the password. Enter the current one.",
+        "data": {
+          "password": "Password"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "The display does not answer. Check the address and that it is switched on.",
+      "invalid_auth": "The display needs a password, or the password is wrong.",
+      "not_wall_display": "This device is not a wall display."
+    },
+    "abort": {
+      "already_configured": "This display is already set up.",
+      "reauth_successful": "The password was updated.",
+      "reconfigure_successful": "The display was updated.",
+      "wrong_device": "This address belongs to a different display."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "data": {
+          "cache_days": "Keep clips for"
+        },
+        "data_description": {
+          "cache_days": "A cached clip is deleted from the display when it was not played for this many days."
+        }
+      }
+    }
+  },
+  "entity": {
+    "media_player": {
+      "speaker": {
+        "name": "Speaker"
+      }
+    },
+    "switch": {
+      "motion_wakes_screen": {
+        "name": "Motion wakes screen"
+      }
+    },
+    "button": {
+      "clear_cache": {
+        "name": "Clear speaker cache"
+      }
+    }
+  },
+  "exceptions": {
+    "play_failed": {
+      "message": "The display could not play the clip: {error}"
+    },
+    "tts_failed": {
+      "message": "The text-to-speech engine failed: {error}"
+    },
+    "fetch_failed": {
+      "message": "The audio could not be downloaded: {error}"
+    },
+    "clip_too_large": {
+      "message": "The audio is larger than 20 MB."
+    },
+    "set_failed": {
+      "message": "The setting could not be changed: {error}"
+    },
+    "clear_failed": {
+      "message": "The clips could not be deleted: {error}"
+    }
+  }
+}

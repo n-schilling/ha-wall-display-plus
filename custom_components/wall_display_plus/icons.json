@@ -1,0 +1,17 @@
+{
+  "entity": {
+    "switch": {
+      "motion_wakes_screen": {
+        "default": "mdi:motion-sensor",
+        "state": {
+          "off": "mdi:motion-sensor-off"
+        }
+      }
+    },
+    "button": {
+      "clear_cache": {
+        "default": "mdi:delete-sweep"
+      }
+    }
+  }
+}

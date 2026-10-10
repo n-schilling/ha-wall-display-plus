@@ -1,0 +1,90 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "description": "Ein Wall Display über seine IP-Adresse oder seinen Hostnamen hinzufügen. Das Passwort ist nur nötig, wenn am Display eines gesetzt ist.",
+        "data": {
+          "host": "Host",
+          "password": "Passwort"
+        },
+        "data_description": {
+          "host": "IP-Adresse oder Hostname des Displays, zum Beispiel 192.168.1.50.",
+          "password": "Leer lassen, wenn das Display kein Passwort hat."
+        }
+      },
+      "reconfigure": {
+        "description": "Adresse oder Passwort des Displays ändern.",
+        "data": {
+          "host": "Host",
+          "password": "Passwort"
+        }
+      },
+      "reauth_confirm": {
+        "description": "Das Display unter {host} hat das Passwort abgelehnt. Bitte das aktuelle eingeben.",
+        "data": {
+          "password": "Passwort"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Das Display antwortet nicht. Adresse prüfen und ob es eingeschaltet ist.",
+      "invalid_auth": "Das Display braucht ein Passwort, oder das Passwort ist falsch.",
+      "not_wall_display": "Dieses Gerät ist kein Wall Display."
+    },
+    "abort": {
+      "already_configured": "Dieses Display ist bereits eingerichtet.",
+      "reauth_successful": "Das Passwort wurde aktualisiert.",
+      "reconfigure_successful": "Das Display wurde aktualisiert.",
+      "wrong_device": "Unter dieser Adresse ist ein anderes Display."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "data": {
+          "cache_days": "Clips aufbewahren für"
+        },
+        "data_description": {
+          "cache_days": "Ein gecachter Clip wird vom Display gelöscht, wenn er so viele Tage nicht abgespielt wurde."
+        }
+      }
+    }
+  },
+  "entity": {
+    "media_player": {
+      "speaker": {
+        "name": "Lautsprecher"
+      }
+    },
+    "switch": {
+      "motion_wakes_screen": {
+        "name": "Bewegung weckt Bildschirm"
+      }
+    },
+    "button": {
+      "clear_cache": {
+        "name": "Lautsprecher-Cache leeren"
+      }
+    }
+  },
+  "exceptions": {
+    "play_failed": {
+      "message": "Das Display konnte den Clip nicht abspielen: {error}"
+    },
+    "tts_failed": {
+      "message": "Die Sprachausgabe ist fehlgeschlagen: {error}"
+    },
+    "fetch_failed": {
+      "message": "Die Audiodatei konnte nicht geladen werden: {error}"
+    },
+    "clip_too_large": {
+      "message": "Die Audiodatei ist größer als 20 MB."
+    },
+    "set_failed": {
+      "message": "Die Einstellung konnte nicht geändert werden: {error}"
+    },
+    "clear_failed": {
+      "message": "Die Clips konnten nicht gelöscht werden: {error}"
+    }
+  }
+}
