@@ -56,6 +56,8 @@ class FakeDisplay:
         self.wake_screen = True
         self.motion_writes = 0
         self.clip_duration = 0.05
+        # Firmware 2.8.2 reports no duration for alert clips
+        self.reports_duration = True
         self.fs_free: int | None = 20 * 1024**3
         self.ram_free = 73 * 1024**2
         self.uptime = 10_000
@@ -160,7 +162,7 @@ class FakeDisplay:
         assert self.library[media_id].type == "ALERT"
         self.played.append(media_id)
         self.played_at.append(time.monotonic())
-        return PlaybackResult(duration=self.clip_duration)
+        return PlaybackResult(duration=self.clip_duration if self.reports_duration else 0.0)
 
     async def stop(self) -> None:
         self._check_auth()

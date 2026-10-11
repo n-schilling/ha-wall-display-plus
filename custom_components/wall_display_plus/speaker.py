@@ -61,6 +61,9 @@ class ClipAudio:
     key: str | None
     extension: str
     data: bytes
+    # Length in seconds, measured from the audio; the display does not
+    # report it for alert clips.
+    duration: float = 0.0
 
 
 @dataclass(slots=True, frozen=True)
@@ -196,12 +199,16 @@ class Speaker:
         return prepared
 
     async def start(self, audio: ClipAudio, prepared: PreparedClip) -> float:
-        """Play a prepared clip; return its duration in seconds (0 when unknown)."""
+        """Play a prepared clip; return its duration in seconds.
+
+        Firmware 2.8.2 reports no duration for alert clips; then the length
+        measured from the audio is used.
+        """
         item = prepared.item
         result = await self._client.play_alert(item.id)
         self.plays += 1
         self.cache_hits += prepared.cache_hit
-        duration = result.duration
+        duration = result.duration or audio.duration
         now = time.monotonic()
         self._busy_until = now + duration + PLAYBACK_MARGIN
         self.playing_until = now + duration

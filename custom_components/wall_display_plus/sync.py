@@ -226,6 +226,7 @@ class SyncManager:
                 key=speaker.key_for(source) if source is not None else None,
                 extension=announcement.extension,
                 data=announcement.data,
+                duration=announcement.duration,
             )
             try:
                 async with speaker.turn():

@@ -18,10 +18,11 @@ rules:
   config-flow: done
   config-flow-test-coverage: done
   dependency-transparency:
-    status: exempt
+    status: done
     comment: >-
-      No third-party requirement. The RPC client is part of the integration
-      (api.py) and uses only aiohttp from Home Assistant.
+      Only mutagen (on PyPI, OSI license, the version Home Assistant's own
+      text-to-speech integration installs) to read the length of a clip. The
+      RPC client is part of the integration (api.py) and uses aiohttp.
   docs-actions:
     status: exempt
     comment: No actions of its own; the README documents the media player actions it supports.

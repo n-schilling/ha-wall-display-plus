@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
+import io
 import json
+import logging
 import mimetypes
 from typing import Any
 
 from aiohttp import ClientError, ClientResponseError, ClientTimeout
+import mutagen
 import yarl
 
 from homeassistant.components import media_source, tts
@@ -22,8 +25,15 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from .const import DOMAIN
 
+_LOGGER = logging.getLogger(__name__)
+
 MAX_CLIP_BYTES = 20 * 1024 * 1024
 FETCH_TIMEOUT = ClientTimeout(total=30)
+
+# Bit rate for estimating the length of audio whose format mutagen cannot
+# read. Speech is usually encoded with less, so the estimate errs on the long
+# side: the next announcement waits a little longer instead of cutting in.
+ESTIMATE_BITS_PER_SECOND = 32_000
 
 
 @dataclass(frozen=True, slots=True)
@@ -36,6 +46,25 @@ class Announcement:
     source: str | None
     extension: str
     data: bytes
+    duration: float = 0.0
+
+
+def audio_duration(data: bytes) -> float:
+    """Return the length of the audio in seconds.
+
+    The display does not report the length of alert clips, but the speaker
+    needs it: to wait before the next clip, to go back to the previous volume
+    and to delete an uncached clip only after it was played.
+    """
+    try:
+        info = mutagen.File(io.BytesIO(data))
+    except mutagen.MutagenError as err:
+        _LOGGER.debug("Audio length unreadable: %s", err)
+        info = None
+    length = getattr(getattr(info, "info", None), "length", None)
+    if isinstance(length, int | float) and length > 0:
+        return float(length)
+    return len(data) * 8 / ESTIMATE_BITS_PER_SECOND
 
 
 def _is_tts(media_id: str) -> bool:
@@ -57,7 +86,15 @@ def tts_message(media_id: str) -> str | None:
 async def async_get_announcement(
     hass: HomeAssistant, media_id: str, target_entity_id: str | None
 ) -> Announcement:
-    """Get the audio for a text to speech request, a media source item or a URL."""
+    """Get the audio and its length for text to speech, a media source item or a URL."""
+    announcement = await _async_get_audio(hass, media_id, target_entity_id)
+    duration = await hass.async_add_executor_job(audio_duration, announcement.data)
+    return replace(announcement, duration=duration)
+
+
+async def _async_get_audio(
+    hass: HomeAssistant, media_id: str, target_entity_id: str | None
+) -> Announcement:
     if media_source.is_media_source_id(media_id):
         if _is_tts(media_id):
             try:
