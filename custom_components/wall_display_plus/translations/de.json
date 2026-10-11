@@ -126,6 +126,9 @@
       }
     },
     "button": {
+      "test_volume": {
+        "name": "Ansage-Lautstärke testen"
+      },
       "clear_cache": {
         "name": "Lautsprecher-Cache leeren"
       },
@@ -240,6 +243,12 @@
     },
     "group_unavailable": {
       "message": "Kein Lautsprecher der Gruppe ist verfügbar."
+    },
+    "no_tts_engine": {
+      "message": "Es ist keine Text-to-Speech-Engine eingerichtet."
+    },
+    "speaker_unavailable": {
+      "message": "Der Lautsprecher dieses Displays ist nicht verfügbar."
     }
   },
   "issues": {

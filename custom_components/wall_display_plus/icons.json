@@ -18,6 +18,9 @@
       }
     },
     "button": {
+      "test_volume": {
+        "default": "mdi:account-voice"
+      },
       "clear_cache": {
         "default": "mdi:delete-sweep"
       },

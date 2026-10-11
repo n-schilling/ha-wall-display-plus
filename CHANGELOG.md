@@ -2,6 +2,12 @@
 
 All notable changes are listed here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versions follow [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+
+- Button "Test announcement volume": speaks a short test sentence at the announcement volume, in Home Assistant's language (German or English), with the voice of the preferred voice assistant or the default text-to-speech engine.
+
 ## [0.1.1] - 2026-10-11
 
 ### Changed

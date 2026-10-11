@@ -126,6 +126,9 @@
       }
     },
     "button": {
+      "test_volume": {
+        "name": "Test announcement volume"
+      },
       "clear_cache": {
         "name": "Clear speaker cache"
       },
@@ -240,6 +243,12 @@
     },
     "group_unavailable": {
       "message": "No speaker of the group is available."
+    },
+    "no_tts_engine": {
+      "message": "No text-to-speech engine is set up."
+    },
+    "speaker_unavailable": {
+      "message": "The speaker of this display is not available."
     }
   },
   "issues": {

@@ -2,6 +2,7 @@
   "domain": "wall_display_plus",
   "name": "Wall Display Plus",
   "after_dependencies": [
+    "assist_pipeline",
     "tts"
   ],
   "codeowners": [
