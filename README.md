@@ -92,6 +92,7 @@ Since Home Assistant 2026.10 a device belongs to a single integration, so the en
 | Speaker group (`media_player`, experimental) | Plays on all its member speakers at the same time; see [Several displays](#several-displays-experimental). Attribute `entity_id` lists the members. |
 | Motion wakes screen (`switch`, configuration) | Whether motion in front of the display wakes the screen. Touch always does. |
 | Dim screen when idle, Turn screen off when idle, Screen saver (`switch`, configuration) | The display's own screen settings. |
+| Announcement volume (`number`, configuration) | Volume of announcements that bring no volume of their own, 70 % by default, in steps of 10 %. Applies to `tts.speak` as well. The display goes back to its previous volume after each announcement, so music keeps its own volume. Can be changed from automations, for example quieter in the evening. |
 | Minimum brightness, Dim after, Screen off after, Screen saver after (`number`, configuration) | Minimum brightness in %, timeouts 10–3600 s. |
 | Clear speaker cache (`button`, configuration) | Deletes every clip this integration put on the display and creates a new secret for the file names. |
 | Restart display app (`button`, configuration) | Restarts only the display app, faster than restarting the device; helps when the dashboard hangs. |
@@ -100,7 +101,7 @@ Since Home Assistant 2026.10 a device belongs to a single integration, so the en
 
 Manual brightness and automatic brightness are left out on purpose: while automatic brightness is on, the display reports its current brightness (0 while the screen is off) as the manual level, so turning the automatic off could leave the screen black.
 
-`media_player.play_media` accepts `extra: {cache: false}` to play a clip without keeping it, and `extra: {volume: 0.8}` (0–1, like `volume_set`) to play one announcement at its own volume; the display goes back to its previous volume afterwards.
+`media_player.play_media` accepts `extra: {cache: false}` to play a clip without keeping it, and `extra: {volume: 0.8}` (0–1, like `volume_set`) to play one announcement at its own volume instead of the announcement volume; the display goes back to its previous volume afterwards.
 
 ## Several displays (experimental)
 
@@ -226,7 +227,7 @@ actions:
 ## Known limitations
 
 - **Several displays (experimental)** start within the time the display needs to answer one request, not sample-accurate; on a busy network or a slow display you may hear an echo. Two announcements to several displays that share a display play one after another; announcements to different displays play at the same time.
-- **Volume** is the display's current media volume, unless an announcement brings its own (`extra: {volume: …}`). Set the general volume with the official integration's media player.
+- **Volume:** the display has a single volume for music and announcements. The speaker sets it to the announcement volume (or the announcement's own) for each clip and goes back afterwards. If that fails, the clip plays at the current volume. Music that plays while an announcement plays is heard at the announcement's volume for that time.
 - **The TTS voice is not part of the cache.** After changing the voice, press **Clear speaker cache**; cached announcements keep the old voice until they expire otherwise.
 - **What can be played:** text to speech, media sources and absolute `http(s)` URLs that return audio, up to 20 MB. Paths of your Home Assistant instance such as `/api/...` are refused: they would be fetched with a signature, so anyone allowed to call `play_media` could copy protected data into the display's media library, which can be read without a password.
 - **Motion and screen settings are written only when the value changes.** Every write makes the official integration reload, and its entities are unavailable for a moment. Do not change these settings from an automation that triggers on those entities becoming available again: that is a loop.

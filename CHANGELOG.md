@@ -14,7 +14,8 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 - Maximum text length for text to speech, 500 characters by default (configurable 50–5000): longer texts are refused before the engine runs, so a text pasted by mistake costs no computing time on the host.
 - Switch "Motion wakes screen", which writes to the display only when the value changes.
 - Screen settings: switches for dimming, turning off and the screen saver; numbers for minimum brightness and the three timeouts (10–3600 s). Written only on change, as whole sections like the display's web interface does. Manual and automatic brightness are left out on purpose.
-- Volume per announcement: `extra: {volume: 0-1}`; the display goes back to its previous volume afterwards, at the latest before the next announcement.
+- Number "Announcement volume" (70 % by default, kept across restarts): the volume of every announcement without its own, `tts.speak` included. The display goes back to its previous volume afterwards, so music keeps its own volume.
+- Volume per announcement: `extra: {volume: 0-1}` instead of the announcement volume; the display goes back to its previous volume afterwards, at the latest before the next announcement.
 - The length of every clip is read from the audio (firmware 2.8.2 does not report it for alert clips), so the volume goes back, the next announcement starts and an uncached clip is deleted only after the clip has played.
 - Diagnostic sensors: free memory, free storage, cached clips, cache size, announcement delay, app started (shows app crashes), and – disabled by default – CPU temperature and cache hit rate.
 - Button "Restart display app" (only the app, not the device).

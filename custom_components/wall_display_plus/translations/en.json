@@ -160,6 +160,9 @@
       }
     },
     "number": {
+      "announcement_volume": {
+        "name": "Announcement volume"
+      },
       "minimum_brightness": {
         "name": "Minimum brightness"
       },

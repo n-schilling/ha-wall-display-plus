@@ -49,6 +49,9 @@
       }
     },
     "number": {
+      "announcement_volume": {
+        "default": "mdi:volume-high"
+      },
       "minimum_brightness": {
         "default": "mdi:brightness-4"
       },

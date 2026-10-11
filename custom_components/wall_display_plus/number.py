@@ -1,4 +1,4 @@
-"""Screen settings as numbers: minimum brightness and timeouts.
+"""Numbers: the announcement volume, and screen settings (minimum brightness, timeouts).
 
 The manual brightness and the automatic brightness switch are left out on
 purpose: while automatic brightness is on, the display reports its current
@@ -15,6 +15,7 @@ from homeassistant.components.number import (
     NumberEntity,
     NumberEntityDescription,
     NumberMode,
+    RestoreNumber,
 )
 from homeassistant.const import PERCENTAGE, EntityCategory, UnitOfTime
 from homeassistant.core import HomeAssistant
@@ -77,7 +78,12 @@ async def async_setup_entry(
     async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
     """Set up the screen numbers."""
-    async_add_entities(ScreenNumber(entry, description) for description in NUMBERS)
+    async_add_entities(
+        [
+            AnnouncementVolumeNumber(entry),
+            *(ScreenNumber(entry, description) for description in NUMBERS),
+        ]
+    )
 
 
 class ScreenNumber(WallDisplayEntity, NumberEntity):
@@ -107,3 +113,42 @@ class ScreenNumber(WallDisplayEntity, NumberEntity):
                 translation_key="set_failed",
                 translation_placeholders={"error": str(err)},
             ) from err
+
+
+class AnnouncementVolumeNumber(WallDisplayEntity, RestoreNumber):
+    """Volume of announcements that do not bring their own (extra.volume).
+
+    Kept by Home Assistant, not on the display: the display has one volume
+    for everything, which the speaker sets for each announcement and resets
+    afterwards, so music keeps its own volume.
+    """
+
+    _attr_entity_category = EntityCategory.CONFIG
+    _attr_native_min_value = 0
+    _attr_native_max_value = 100
+    _attr_native_step = 10
+    _attr_native_unit_of_measurement = PERCENTAGE
+    _attr_mode = NumberMode.SLIDER
+
+    def __init__(self, entry: WallDisplayConfigEntry) -> None:
+        """Initialize the number."""
+        super().__init__(entry, "announcement_volume")
+
+    async def async_added_to_hass(self) -> None:
+        """Take the volume set before Home Assistant restarted."""
+        await super().async_added_to_hass()
+        if (last := await self.async_get_last_number_data()) and last.native_value is not None:
+            self._speaker_volume(last.native_value)
+
+    @property
+    def native_value(self) -> float:
+        """Return the volume in percent."""
+        return float(self._entry.runtime_data.speaker.announcement_volume * 10)
+
+    async def async_set_native_value(self, value: float) -> None:
+        """Set the volume; it applies from the next announcement on."""
+        self._speaker_volume(value)
+        self.async_write_ha_state()
+
+    def _speaker_volume(self, percent: float) -> None:
+        self._entry.runtime_data.speaker.announcement_volume = min(max(round(percent / 10), 0), 10)

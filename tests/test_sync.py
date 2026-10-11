@@ -195,7 +195,7 @@ async def test_display_not_ready_in_time_does_not_play(
         await _play(hass, _speakers(hass), extra={"volume": 0.8})
     assert displays[0].played and displays[2].played
     assert not displays[1].played
-    assert displays[1].volume_writes == [8, 5]
+    assert displays[1].volume_writes == [8, 7]
     # The clip it uploaded stays cached for the next time
     speaker = entries[1].runtime_data.speaker
     assert len(speaker.entries) == 1

@@ -63,7 +63,7 @@ class FakeDisplay:
         self.uptime = 10_000
         self.app_uptime = 9_990
         self.cpu_temperature: float | None = 44.4
-        self.volume = 5
+        self.volume = 7
         self.volume_writes: list[int] = []
         self.app_restarts = 0
         self.ui_writes: list[dict[str, Any]] = []

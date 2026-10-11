@@ -160,6 +160,9 @@
       }
     },
     "number": {
+      "announcement_volume": {
+        "name": "Ansage-Lautstärke"
+      },
       "minimum_brightness": {
         "name": "Minimale Helligkeit"
       },

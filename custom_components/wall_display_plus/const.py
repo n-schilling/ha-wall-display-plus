@@ -28,6 +28,10 @@ DEFAULT_MAX_TEXT_LENGTH: Final = 500
 MIN_MAX_TEXT_LENGTH: Final = 50
 MAX_MAX_TEXT_LENGTH: Final = 5000
 
+# Volume (display steps 0-10) for announcements without their own volume, until
+# the user changes the "Announcement volume" entity.
+DEFAULT_ANNOUNCEMENT_VOLUME: Final = 7
+
 # An upload must leave at least this much storage free on the display.
 FREE_SPACE_RESERVE: Final = 100 * 1024 * 1024
 

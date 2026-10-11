@@ -83,6 +83,6 @@ async def test_volume_goes_back_after_the_measured_length(
         assert display.volume_writes == [9]  # still playing
 
         await hass.services.async_call(MP_DOMAIN, SERVICE_PLAY_MEDIA, data, blocking=True)
-    assert display.volume_writes == [9, 5]
+    assert display.volume_writes == [9, 7]
     first, second = display.played_at
     assert second - first >= 0.4

@@ -7,7 +7,11 @@ from typing import Any
 from unittest.mock import AsyncMock, patch
 
 import pytest
-from pytest_homeassistant_custom_component.common import MockConfigEntry, async_fire_time_changed
+from pytest_homeassistant_custom_component.common import (
+    MockConfigEntry,
+    async_fire_time_changed,
+    mock_restore_cache_with_extra_data,
+)
 
 from homeassistant.components.button import DOMAIN as BUTTON_DOMAIN, SERVICE_PRESS
 from homeassistant.components.media_player import (
@@ -28,7 +32,7 @@ from homeassistant.const import (
     STATE_UNKNOWN,
     EntityCategory,
 )
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, State
 from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 from homeassistant.helpers import entity_registry as er
 from homeassistant.util import dt as dt_util
@@ -202,15 +206,16 @@ async def test_volume_per_announcement_is_restored(
     await _play(hass, {"volume": 0.8})
     assert display.volume_writes == [8]
     await hass.async_block_till_done(wait_background_tasks=True)
-    assert display.volume_writes == [8, 5]
-    assert display.volume == 5
+    assert display.volume_writes == [8, 7]
+    assert display.volume == 7
 
 
 async def test_same_volume_writes_nothing(
     hass: HomeAssistant, display: FakeDisplay, setup_entry: MockConfigEntry, tts_audio
 ) -> None:
     """The current volume is not written again."""
-    await _play(hass, {"volume": 0.5})
+    await _play(hass, {"volume": 0.7})
+    await _play(hass)  # the announcement volume, 70 %
     await hass.async_block_till_done(wait_background_tasks=True)
     assert display.volume_writes == []
 
@@ -223,8 +228,62 @@ async def test_next_announcement_restores_first(
     await _play(hass, {"volume": 1.0})
     with patch("custom_components.wall_display_plus.speaker.asyncio.sleep", AsyncMock()):
         await _play(hass)
-    assert display.volume_writes[:2] == [10, 5]
-    assert display.volume == 5
+    assert display.volume_writes[:2] == [10, 7]
+    assert display.volume == 7
+
+
+async def test_announcement_volume(
+    hass: HomeAssistant, display: FakeDisplay, setup_entry: MockConfigEntry, tts_audio
+) -> None:
+    """Announcements without their own volume play at the announcement volume.
+
+    The display's volume (music) is set back afterwards.
+    """
+    entity_id = _eid(hass, NUMBER_DOMAIN, "announcement_volume")
+    assert hass.states.get(entity_id).state == "70.0"
+    assert er.async_get(hass).async_get(entity_id).entity_category is EntityCategory.CONFIG
+    display.volume = 3
+    await _play(hass)
+    await hass.async_block_till_done(wait_background_tasks=True)
+    assert display.volume_writes == [7, 3]
+
+    await hass.services.async_call(
+        NUMBER_DOMAIN, SERVICE_SET_VALUE, {ATTR_ENTITY_ID: entity_id, ATTR_VALUE: 40}, blocking=True
+    )
+    assert hass.states.get(entity_id).state == "40.0"
+    await _play(hass)
+    await hass.async_block_till_done(wait_background_tasks=True)
+    assert display.volume_writes == [7, 3, 4, 3]
+    await _play(hass, {"volume": 0.9})  # its own volume wins
+    await hass.async_block_till_done(wait_background_tasks=True)
+    assert display.volume_writes[-2:] == [9, 3]
+
+
+async def test_announcement_volume_survives_restart(
+    hass: HomeAssistant, display: FakeDisplay, config_entry: MockConfigEntry, tts_audio
+) -> None:
+    """The announcement volume set before a restart is kept."""
+    mock_restore_cache_with_extra_data(
+        hass,
+        [
+            (
+                State("number.hallway_display_announcement_volume", "30.0"),
+                {
+                    "native_value": 30.0,
+                    "native_min_value": 0,
+                    "native_max_value": 100,
+                    "native_step": 10,
+                    "native_unit_of_measurement": "%",
+                },
+            )
+        ],
+    )
+    config_entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(config_entry.entry_id)
+    await hass.async_block_till_done()
+    assert config_entry.runtime_data.speaker.announcement_volume == 3
+    await _play(hass)
+    assert display.volume_writes == [3]
 
 
 @pytest.mark.parametrize("volume", [1.5, -0.1, "loud", True])

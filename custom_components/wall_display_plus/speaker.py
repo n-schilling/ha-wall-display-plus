@@ -36,6 +36,7 @@ from homeassistant.util import dt as dt_util
 from .api import MediaItem, WallDisplayClient, WallDisplayError, WallDisplayStorageError
 from .const import (
     CLIP_PREFIX,
+    DEFAULT_ANNOUNCEMENT_VOLUME,
     DOMAIN,
     FREE_SPACE_RESERVE,
     KEY_LENGTH,
@@ -121,7 +122,10 @@ class Speaker:
         self._lock = asyncio.Lock()
         self._busy_until = 0.0
         self.playing_until = 0.0
-        # Volume to go back to after an announcement with its own volume
+        # Volume (0-10) for announcements without their own volume; set by the
+        # "Announcement volume" entity
+        self.announcement_volume = DEFAULT_ANNOUNCEMENT_VOLUME
+        # Volume to go back to after an announcement
         self._restore_volume: int | None = None
         self._restore_task: asyncio.Task[None] | None = None
         # Statistics since Home Assistant started (diagnostic sensors)
@@ -187,15 +191,15 @@ class Speaker:
     async def prepare(self, audio: ClipAudio, volume: int | None = None) -> PreparedClip:
         """Put the clip on the display and set its volume (0-10); do not play yet.
 
-        With a volume, the display plays the clip at that volume and goes
-        back to the previous one afterwards. A cached clip is recorded in the
+        Without a volume of its own, the clip plays at the announcement
+        volume. The display goes back to its previous volume afterwards, so
+        music keeps its own volume. A cached clip is recorded in the
         cache as soon as it is on the display, even if it never starts.
         """
         prepared = await self._ensure_on_display(audio)
         if audio.key is not None:
             self._remember(audio.key, prepared.item)
-        if volume is not None:
-            await self._set_volume_for_clip(volume)
+        await self._set_volume_for_clip(self.announcement_volume if volume is None else volume)
         return prepared
 
     async def start(self, audio: ClipAudio, prepared: PreparedClip) -> float:
@@ -258,12 +262,20 @@ class Speaker:
         return PreparedClip(item, cache_hit=False)
 
     async def _set_volume_for_clip(self, volume: int) -> None:
-        """Set the volume for one clip and remember the one to go back to."""
-        playback = (await self._client.get_media_status()).get("playback") or {}
-        current = playback.get("volume")
-        if not isinstance(current, int) or current == volume:
+        """Set the volume for one clip and remember the one to go back to.
+
+        A failure does not stop the announcement: it plays at the current
+        volume. If the display is gone, playing fails anyway.
+        """
+        try:
+            playback = (await self._client.get_media_status()).get("playback") or {}
+            current = playback.get("volume")
+            if not isinstance(current, int) or current == volume:
+                return
+            await self._client.set_volume(volume)
+        except WallDisplayError as err:
+            _LOGGER.debug("Could not set the volume of the clip: %s", err)
             return
-        await self._client.set_volume(volume)
         self._restore_volume = current
 
     async def _restore_volume_now(self) -> None:
