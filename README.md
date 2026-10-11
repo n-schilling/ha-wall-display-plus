@@ -26,9 +26,10 @@ Announcements play one after another; a second one waits for the first to finish
 
 | Device | Status |
 |---|---|
-| Wall Display XL (SAWD-3A1XE10EU2), firmware 2.8.2 | Tested |
-| Other wall displays with a speaker and firmware 2.8 or newer | Expected to work, not tested |
-| Wall displays without a speaker | Can be added, but there is nothing to hear |
+| Wall Display XL (SAWD-3A1XE10EU2), firmware 2.8.2 | Supported and tested |
+| Other wall displays (for example SAWD-0A1XX10EU1) | Not offered and refused during setup |
+
+Only the Wall Display XL is offered: it has the speaker and the motion sensor this integration is about. The firmware of other wall displays offers the same media interface but does not report whether a speaker is built in, so the integration recognizes the XL by its model. If you have another model with a speaker that should be supported, please open an [issue](https://github.com/n-schilling/ha-wall-display-plus/issues) with its model name.
 
 Requirements: Home Assistant 2026.10 or newer, and a text-to-speech engine for announcements, see [Text-to-speech engine](#text-to-speech-engine).
 

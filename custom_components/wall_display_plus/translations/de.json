@@ -63,8 +63,8 @@
     "error": {
       "cannot_connect": "Das Display antwortet nicht. Adresse prüfen und ob es eingeschaltet ist.",
       "invalid_auth": "Das Display braucht ein Passwort, oder das Passwort ist falsch.",
-      "not_wall_display": "Dieses Gerät ist kein Wall Display.",
-      "too_few_members": "Bitte mindestens zwei Lautsprecher wählen."
+      "too_few_members": "Bitte mindestens zwei Lautsprecher wählen.",
+      "not_supported": "Dieses Gerät ist kein Wall Display XL. Unterstützt wird nur das Wall Display XL: Es hat den Lautsprecher und den Bewegungsmelder."
     },
     "abort": {
       "already_configured": "Dieses Display ist bereits eingerichtet.",
@@ -72,8 +72,8 @@
       "reconfigure_successful": "Das Display wurde aktualisiert.",
       "wrong_device": "Unter dieser Adresse ist ein anderes Display.",
       "cannot_connect": "Das Display antwortet nicht.",
-      "not_wall_display": "Dieses Gerät ist kein Wall Display.",
-      "ipv6_not_supported": "Erkennung über IPv6 wird nicht unterstützt; das Display über seine IPv4-Adresse hinzufügen."
+      "ipv6_not_supported": "Erkennung über IPv6 wird nicht unterstützt; das Display über seine IPv4-Adresse hinzufügen.",
+      "not_supported": "Dieses Gerät ist kein Wall Display XL. Unterstützt wird nur das Wall Display XL: Es hat den Lautsprecher und den Bewegungsmelder."
     },
     "flow_title": "{name}"
   },

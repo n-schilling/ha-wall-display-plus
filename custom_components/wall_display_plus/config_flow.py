@@ -62,8 +62,8 @@ class CannotConnect(Exception):
     """The display is not reachable."""
 
 
-class NotAWallDisplay(Exception):
-    """The device answered, but is no wall display."""
+class NotSupported(Exception):
+    """The device answered, but is no supported model (Wall Display XL)."""
 
 
 class InvalidAuth(Exception):
@@ -94,8 +94,8 @@ class WallDisplayConfigFlow(ConfigFlow, domain=DOMAIN):
             device = await client.get_device_info()
         except WallDisplayError as err:
             raise CannotConnect from err
-        if not device.is_wall_display or not device.mac:
-            raise NotAWallDisplay
+        if not device.is_supported or not device.mac:
+            raise NotSupported
         if device.auth_enabled and not password:
             raise InvalidAuth
         try:
@@ -114,8 +114,8 @@ class WallDisplayConfigFlow(ConfigFlow, domain=DOMAIN):
             return await self._async_validate(host, password)
         except CannotConnect:
             errors["base"] = "cannot_connect"
-        except NotAWallDisplay:
-            errors["base"] = "not_wall_display"
+        except NotSupported:
+            errors["base"] = "not_supported"
         except InvalidAuth:
             errors["base"] = "invalid_auth"
         return None
@@ -186,8 +186,8 @@ class WallDisplayConfigFlow(ConfigFlow, domain=DOMAIN):
             device, name = await self._async_validate(host, None)
         except CannotConnect:
             return self.async_abort(reason="cannot_connect")
-        except NotAWallDisplay:
-            return self.async_abort(reason="not_wall_display")
+        except NotSupported:
+            return self.async_abort(reason="not_supported")
         except InvalidAuth:
             pass  # the password is asked for in the next step
         else:
@@ -219,7 +219,7 @@ class WallDisplayConfigFlow(ConfigFlow, domain=DOMAIN):
             device = await client.get_device_info()
         except WallDisplayError:
             return self.async_abort(reason="already_configured")
-        if device.mac != entry.unique_id or not device.is_wall_display:
+        if device.mac != entry.unique_id or not device.is_supported:
             return self.async_abort(reason="already_configured")
         self._abort_if_unique_id_configured(updates={CONF_HOST: host})
         return self.async_abort(reason="already_configured")  # pragma: no cover

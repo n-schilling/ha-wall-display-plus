@@ -4,6 +4,10 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 
 ## [Unreleased]
 
+### Changed
+
+- Only the Wall Display XL (SAWD-3A1XE10EU2) is offered and set up. Other wall displays have the same media interface but may have no speaker or motion sensor, which the firmware does not report; they are no longer offered in discovery and are refused when added by hand.
+
 ### Fixed
 
 - Adding a display by hand no longer aborts with "already in progress" while Home Assistant shows the same display as discovered; the manual setup takes over.

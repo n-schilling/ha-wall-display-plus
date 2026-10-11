@@ -116,7 +116,7 @@ async def test_device_info(server, session) -> None:
     info = await WallDisplayClient(session, host, None).get_device_info()
     assert info.mac == "02a1b2c3d4e5"
     assert info.firmware == "2.8.2"
-    assert info.is_wall_display
+    assert info.is_supported
     assert not info.auth_enabled
     assert info.fs_free == 23992492032
 

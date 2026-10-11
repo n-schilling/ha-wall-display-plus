@@ -51,12 +51,18 @@ async def test_user_cannot_connect(hass: HomeAssistant, display: FakeDisplay) ->
     assert result["errors"] == {"base": "cannot_connect"}
 
 
-async def test_user_not_a_wall_display(hass: HomeAssistant, display: FakeDisplay) -> None:
-    """Another device is refused."""
-    display.app = "Plus1PM"
-    display.model = "SNSW-001P16EU"
+@pytest.mark.parametrize(
+    ("app", "model"),
+    [("Plus1PM", "SNSW-001P16EU"), ("WallDisplay", "SAWD-0A1XX10EU1")],
+)
+async def test_user_not_supported(
+    hass: HomeAssistant, display: FakeDisplay, app: str, model: str
+) -> None:
+    """Only the Wall Display XL is accepted, not other devices or wall displays."""
+    display.app = app
+    display.model = model
     result = await _start(hass, {CONF_HOST: HOST})
-    assert result["errors"] == {"base": "not_wall_display"}
+    assert result["errors"] == {"base": "not_supported"}
 
 
 async def test_user_password(hass: HomeAssistant, display: FakeDisplay) -> None:
@@ -295,7 +301,11 @@ async def test_zeroconf_with_password(hass: HomeAssistant, display: FakeDisplay)
 
 @pytest.mark.parametrize(
     ("change", "reason"),
-    [("unreachable", "cannot_connect"), ("other_device", "not_wall_display")],
+    [
+        ("unreachable", "cannot_connect"),
+        ("other_device", "not_supported"),
+        ("small_display", "not_supported"),
+    ],
 )
 async def test_zeroconf_aborts(
     hass: HomeAssistant, display: FakeDisplay, change: str, reason: str
@@ -303,6 +313,9 @@ async def test_zeroconf_aborts(
     """Unreachable or foreign devices end the discovery."""
     if change == "unreachable":
         display.reachable = False
+    elif change == "small_display":
+        display.app = "WallDisplay"
+        display.model = "SAWD-0A1XX10EU1"
     else:
         display.app = "Plus1PM"
         display.model = "SNSW-001P16EU"

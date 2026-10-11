@@ -15,7 +15,7 @@ from typing import Any
 
 from aiohttp import ClientError, ClientSession, ClientTimeout, DigestAuthMiddleware
 
-from .const import AUTH_USER, UPLOAD_CHUNK_SIZE
+from .const import AUTH_USER, SUPPORTED_MODELS, UPLOAD_CHUNK_SIZE
 
 TIMEOUT = ClientTimeout(total=20)
 UPLOAD_TIMEOUT = ClientTimeout(total=60)
@@ -62,9 +62,9 @@ class DeviceInfo:
     app_uptime: int | None = None  # seconds since the display app started
 
     @property
-    def is_wall_display(self) -> bool:
-        """Return whether this is a wall display."""
-        return self.app.startswith("WallDisplay") or self.model.startswith("SAWD")
+    def is_supported(self) -> bool:
+        """Return whether this is a model the integration supports (Wall Display XL)."""
+        return self.model in SUPPORTED_MODELS
 
 
 @dataclass(frozen=True, slots=True)

@@ -63,8 +63,8 @@
     "error": {
       "cannot_connect": "The display does not answer. Check the address and that it is switched on.",
       "invalid_auth": "The display needs a password, or the password is wrong.",
-      "not_wall_display": "This device is not a wall display.",
-      "too_few_members": "Choose at least two speakers."
+      "too_few_members": "Choose at least two speakers.",
+      "not_supported": "This device is not a Wall Display XL. Only the Wall Display XL is supported: it has the speaker and the motion sensor."
     },
     "abort": {
       "already_configured": "This display is already set up.",
@@ -72,8 +72,8 @@
       "reconfigure_successful": "The display was updated.",
       "wrong_device": "This address belongs to a different display.",
       "cannot_connect": "The display does not answer.",
-      "not_wall_display": "This device is not a wall display.",
-      "ipv6_not_supported": "Discovery over IPv6 is not supported; add the display by its IPv4 address."
+      "ipv6_not_supported": "Discovery over IPv6 is not supported; add the display by its IPv4 address.",
+      "not_supported": "This device is not a Wall Display XL. Only the Wall Display XL is supported: it has the speaker and the motion sensor."
     },
     "flow_title": "{name}"
   },
