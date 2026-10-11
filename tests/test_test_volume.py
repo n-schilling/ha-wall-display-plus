@@ -32,6 +32,10 @@ def tts_engine() -> Generator[MagicMock]:
             return_value="tts.default",
         ),
         patch(
+            "custom_components.wall_display_plus.button.get_engine_instance",
+            return_value=None,
+        ),
+        patch(
             "custom_components.wall_display_plus.button.tts.generate_media_source_id",
             return_value=TTS,
         ) as generate,
@@ -120,6 +124,36 @@ async def test_uses_the_voice_assistant(
     message, engine, language, options = expected
     tts_engine.assert_called_once_with(
         hass, message, engine=engine, language=language, options=options
+    )
+
+
+@pytest.mark.parametrize(
+    ("language", "engine_language", "message"),
+    [
+        ("de", "de_DE", "Das ist ein Test der Ansage-Lautstärke."),
+        ("en", "en_US", "This is a test of the announcement volume."),
+        ("fr", "de_DE", "Das ist ein Test der Ansage-Lautstärke."),
+        ("de_DE", "de_DE", "Das ist ein Test der Ansage-Lautstärke."),
+    ],
+)
+async def test_language_the_engine_knows(
+    hass: HomeAssistant,
+    display: FakeDisplay,
+    setup_entry: MockConfigEntry,
+    tts_engine: MagicMock,
+    language: str,
+    engine_language: str,
+    message: str,
+) -> None:
+    """HA's "de" becomes the engine's "de_DE"; unknown ones its default language."""
+    hass.config.language = language
+    engine = SimpleNamespace(supported_languages=["de_DE", "en_US"], default_language="de_DE")
+    with patch(
+        "custom_components.wall_display_plus.button.get_engine_instance", return_value=engine
+    ):
+        await _press(hass)
+    tts_engine.assert_called_once_with(
+        hass, message, engine="tts.default", language=engine_language, options=None
     )
 
 

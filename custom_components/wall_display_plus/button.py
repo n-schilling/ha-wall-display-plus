@@ -7,11 +7,13 @@ from typing import Any
 from homeassistant.components import tts
 from homeassistant.components.button import ButtonEntity
 from homeassistant.components.button.const import ButtonDeviceClass
+from homeassistant.components.tts.helper import get_engine_instance
 from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
+from homeassistant.util import language as language_util
 
 from .api import WallDisplayError
 from .const import DOMAIN
@@ -48,6 +50,22 @@ def _voice(hass: HomeAssistant) -> tuple[str | None, str, dict[str, Any] | None]
     return tts.async_default_engine(hass), hass.config.language, None
 
 
+def _engine_language(hass: HomeAssistant, engine: str, wanted: str) -> str:
+    """Return the language of the engine that fits the wanted one.
+
+    Home Assistant's language is "de", Piper for example only knows "de_DE".
+    Without a fitting language the engine's default language is used.
+    """
+    if (instance := get_engine_instance(hass, engine)) is None:
+        return wanted
+    supported = list(instance.supported_languages or [])
+    if wanted in supported:
+        return wanted
+    if found := language_util.matches(wanted, supported, hass.config.country):
+        return found[0]
+    return str(instance.default_language)
+
+
 def _assistant_voice(hass: HomeAssistant) -> tuple[str, str, dict[str, Any] | None] | None:
     """Return the voice of the preferred voice assistant, if one speaks."""
     if "assist_pipeline" not in hass.config.components:
@@ -76,7 +94,10 @@ class TestVolumeButton(WallDisplayEntity, ButtonEntity):
         engine, language, options = _voice(self.hass)
         if engine is None:
             raise HomeAssistantError(translation_domain=DOMAIN, translation_key="no_tts_engine")
-        message = TEST_MESSAGES.get(language.split("-")[0].lower(), TEST_MESSAGES["en"])
+        language = _engine_language(self.hass, engine, language)
+        message = TEST_MESSAGES.get(
+            language.replace("_", "-").split("-")[0].lower(), TEST_MESSAGES["en"]
+        )
         media_id = tts.generate_media_source_id(
             self.hass, message, engine=engine, language=language, options=options
         )
