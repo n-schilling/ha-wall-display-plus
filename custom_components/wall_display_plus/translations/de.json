@@ -147,7 +147,12 @@
         "name": "CPU-Temperatur"
       },
       "cache_clips": {
-        "name": "Gecachte Clips"
+        "name": "Gecachte Clips",
+        "state_attributes": {
+          "file_prefix": {
+            "name": "Dateipräfix"
+          }
+        }
       },
       "cache_size": {
         "name": "Cache-Größe"

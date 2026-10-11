@@ -2,6 +2,12 @@
 
 All notable changes are listed here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versions follow [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+
+- Attribute "File prefix" on the sensor "Cached clips": the `homeassistant_<tag>_` prefix of this entry's files on the display. The texts of the clips are still not shown anywhere.
+
 ## [0.1.3] - 2026-10-11
 
 ### Fixed

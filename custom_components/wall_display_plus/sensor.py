@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime, timedelta
+from typing import Any
 
 from homeassistant.components.sensor import (
     SensorDeviceClass,
@@ -23,6 +24,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.util import dt as dt_util
 
+from .const import CLIP_PREFIX
 from .coordinator import DisplayState, WallDisplayConfigEntry
 from .entity import WallDisplayEntity
 from .speaker import Speaker
@@ -39,6 +41,7 @@ class WallDisplaySensorDescription(SensorEntityDescription):
     """A sensor and where its value comes from."""
 
     value: Callable[[DisplayState, Speaker], float | int | None]
+    attributes: Callable[[Speaker], dict[str, Any]] | None = None
 
 
 SENSORS: tuple[WallDisplaySensorDescription, ...] = (
@@ -73,6 +76,9 @@ SENSORS: tuple[WallDisplaySensorDescription, ...] = (
         key="cache_clips",
         state_class=SensorStateClass.MEASUREMENT,
         value=lambda state, _: state.cache_clips,
+        # Every clip of this entry starts with it; shows which files in the
+        # display's media library belong here. The texts are never shown.
+        attributes=lambda speaker: {"file_prefix": f"{CLIP_PREFIX}{speaker.tag}_"},
     ),
     WallDisplaySensorDescription(
         key="cache_size",
@@ -118,6 +124,7 @@ class WallDisplaySensor(WallDisplayEntity, SensorEntity):
     """A diagnostic value of the display or the speaker."""
 
     _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _unrecorded_attributes = frozenset({"file_prefix"})
     entity_description: WallDisplaySensorDescription
 
     def __init__(
@@ -133,6 +140,13 @@ class WallDisplaySensor(WallDisplayEntity, SensorEntity):
         return self.entity_description.value(
             self.coordinator.data, self._entry.runtime_data.speaker
         )
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any] | None:
+        """Return extra attributes, if the sensor has any."""
+        if self.entity_description.attributes is None:
+            return None
+        return self.entity_description.attributes(self._entry.runtime_data.speaker)
 
 
 class AppStartedSensor(WallDisplayEntity, SensorEntity):

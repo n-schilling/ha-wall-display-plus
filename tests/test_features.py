@@ -106,6 +106,17 @@ async def test_device_sensors(
     assert entry.entity_category is EntityCategory.DIAGNOSTIC
 
 
+async def test_cache_sensor_shows_file_prefix(
+    hass: HomeAssistant, display: FakeDisplay, setup_entry: MockConfigEntry
+) -> None:
+    """The cached clips sensor names the prefix of this entry's files, nothing else."""
+    state = hass.states.get(_eid(hass, "sensor", "cache_clips"))
+    tag = setup_entry.runtime_data.speaker.tag
+    assert state.attributes["file_prefix"] == f"homeassistant_{tag}_"
+    other = hass.states.get(_eid(hass, "sensor", "cache_size"))
+    assert "file_prefix" not in other.attributes
+
+
 async def test_rarely_used_sensors_are_disabled(
     hass: HomeAssistant, display: FakeDisplay, setup_entry: MockConfigEntry
 ) -> None:
