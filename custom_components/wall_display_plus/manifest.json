@@ -17,7 +17,7 @@
   "iot_class": "local_polling",
   "issue_tracker": "https://github.com/n-schilling/ha-wall-display-plus/issues",
   "requirements": [],
-  "version": "0.1.1",
+  "version": "0.1.2",
   "zeroconf": [
     {
       "type": "_shelly._tcp.local.",
