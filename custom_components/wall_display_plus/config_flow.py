@@ -136,7 +136,8 @@ class WallDisplayConfigFlow(ConfigFlow, domain=DOMAIN):
             password = user_input.get(CONF_PASSWORD) or None
             if result := await self._async_try(host, password, errors):
                 device, name = result
-                await self.async_set_unique_id(device.mac)
+                # Adding by hand takes over a discovery of the same display
+                await self.async_set_unique_id(device.mac, raise_on_progress=False)
                 self._abort_if_unique_id_configured(updates={CONF_HOST: host})
                 return self.async_create_entry(
                     title=name, data={CONF_HOST: host, CONF_PASSWORD: password}

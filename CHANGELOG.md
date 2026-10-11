@@ -2,6 +2,12 @@
 
 All notable changes are listed here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versions follow [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Fixed
+
+- Adding a display by hand no longer aborts with "already in progress" while Home Assistant shows the same display as discovered; the manual setup takes over.
+
 ## [0.1.0] - 2026-10-11
 
 ### Added

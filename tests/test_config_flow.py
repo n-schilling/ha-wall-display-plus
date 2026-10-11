@@ -163,6 +163,21 @@ async def test_zeroconf_new_display(hass: HomeAssistant, display: FakeDisplay) -
     assert result["result"].unique_id == MAC
 
 
+async def test_user_takes_over_discovery(hass: HomeAssistant, display: FakeDisplay) -> None:
+    """Adding a display by hand works while its discovery waits for confirmation."""
+    discovery = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": config_entries.SOURCE_ZEROCONF}, data=_zeroconf()
+    )
+    assert discovery["step_id"] == "zeroconf_confirm"
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": config_entries.SOURCE_USER}
+    )
+    result = await hass.config_entries.flow.async_configure(result["flow_id"], {CONF_HOST: HOST})
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    await hass.async_block_till_done()
+    assert not hass.config_entries.flow.async_progress()
+
+
 async def test_zeroconf_updates_known_display(
     hass: HomeAssistant, display: FakeDisplay, config_entry: MockConfigEntry
 ) -> None:
