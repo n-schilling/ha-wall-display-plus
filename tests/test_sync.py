@@ -57,6 +57,8 @@ DISPLAYS = {
 }
 TTS = "media-source://tts/tts.piper?message=Hallo&language=de_DE"
 TTS_OTHER = "media-source://tts/tts.piper?message=Tsch%C3%BCss&language=de_DE"
+# A fourth display, added only by the tests that need it
+FOURTH = ("192.0.2.14", "02a1b2c3d4e8")
 # Starts closer together than this count as simultaneous in the simulation
 TOGETHER = 0.05
 
@@ -64,11 +66,13 @@ TOGETHER = 0.05
 @pytest.fixture
 def displays() -> Generator[list[FakeDisplay]]:
     """Three simulated displays, picked by address."""
-    fakes = {host: FakeDisplay(mac) for host, mac in DISPLAYS.items()}
+    fakes = {host: FakeDisplay(mac) for host, mac in (*DISPLAYS.items(), FOURTH)}
 
     def factory(_session: Any, host: str, password: str | None) -> FakeDisplay:
         fakes[host].client_password = password
         return fakes[host]
+
+    fakes_by_host.update(fakes)
 
     with (
         patch("custom_components.wall_display_plus.WallDisplayClient", side_effect=factory),
@@ -79,7 +83,11 @@ def displays() -> Generator[list[FakeDisplay]]:
         patch("custom_components.wall_display_plus.speaker.PLAYBACK_MARGIN", 0.0),
         patch("custom_components.wall_display_plus.speaker.DELETE_GRACE", 0.0),
     ):
-        yield list(fakes.values())
+        yield list(fakes.values())[:3]
+        fakes_by_host.clear()
+
+
+fakes_by_host: dict[str, FakeDisplay] = {}
 
 
 @pytest.fixture
@@ -188,6 +196,48 @@ async def test_display_not_ready_in_time_does_not_play(
     assert displays[0].played and displays[2].played
     assert not displays[1].played
     assert displays[1].volume_writes == [8, 5]
+    # The clip it uploaded stays cached for the next time
+    speaker = entries[1].runtime_data.speaker
+    assert len(speaker.entries) == 1
+    assert await speaker.async_cleanup() == 0
+    assert len(displays[1].clips()) == 1
+
+
+async def test_late_uncached_clip_is_deleted_at_once(
+    hass: HomeAssistant, displays: list[FakeDisplay], entries: list[MockConfigEntry], tts_audio
+) -> None:
+    """A clip not to be cached is deleted when its display missed the start."""
+    displays[1].upload_delay = 0.4
+    with (
+        patch("custom_components.wall_display_plus.sync.SYNC_TIMEOUT", 0.1),
+        pytest.raises(HomeAssistantError, match="not ready within"),
+    ):
+        await _play(hass, _speakers(hass), extra={"cache": False})
+    assert displays[1].uploads and not displays[1].clips()
+
+
+async def test_late_cache_hit_is_not_counted(
+    hass: HomeAssistant, displays: list[FakeDisplay], entries: list[MockConfigEntry], tts_audio
+) -> None:
+    """A display that had the clip but missed the start counts no cache hit."""
+    speakers = _speakers(hass)
+    await _play(hass, speakers)
+    slow = displays[1]
+    find_media = slow.find_media
+
+    async def slow_find(filename: str, attempts: int = 8) -> Any:
+        await asyncio.sleep(0.4)
+        return await find_media(filename, attempts)
+
+    slow.find_media = slow_find  # type: ignore[method-assign]
+    with (
+        patch("custom_components.wall_display_plus.sync.SYNC_TIMEOUT", 0.1),
+        pytest.raises(HomeAssistantError, match="not ready within"),
+    ):
+        await _play(hass, speakers)
+    speaker = entries[1].runtime_data.speaker
+    assert (speaker.plays, speaker.cache_hits) == (1, 0)
+    assert entries[0].runtime_data.speaker.cache_hit_rate == 50
 
 
 async def test_busy_display_misses_the_start(
@@ -330,7 +380,8 @@ async def test_create_group(
     speakers = _speakers(hass)
     entry = await _create_group(hass, [*speakers[:2], speakers[0]])
     assert entry.data == {CONF_TYPE: TYPE_GROUP}
-    assert entry.options == {CONF_MEMBERS: speakers[:2]}
+    registry = er.async_get(hass)
+    assert entry.options == {CONF_MEMBERS: [registry.async_get(e).id for e in speakers[:2]]}
     group = _group_id(hass, entry)
     assert group == "media_player.downstairs"
     state = hass.states.get(group)
@@ -528,3 +579,85 @@ async def test_cancelled_session_releases_the_callers(
         pytest.raises(asyncio.CancelledError),
     ):
         await manager.async_play(Context(), TTS, {}, None, [speaker])
+
+
+async def _add_fourth(hass: HomeAssistant) -> tuple[FakeDisplay, str]:
+    host, mac = FOURTH
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        title="Display 4",
+        unique_id=mac,
+        data={CONF_HOST: host, CONF_PASSWORD: None},
+    )
+    entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+    entity_id = er.async_get(hass).async_get_entity_id(MP_DOMAIN, DOMAIN, f"{mac}_speaker")
+    assert entity_id
+    return fakes_by_host[host], entity_id
+
+
+async def test_sessions_on_other_displays_do_not_wait(
+    hass: HomeAssistant, displays: list[FakeDisplay], entries: list[MockConfigEntry], tts_audio
+) -> None:
+    """A session waiting for a busy display does not hold up other displays."""
+    fourth, fourth_id = await _add_fourth(hass)
+    speakers = _speakers(hass)
+    displays[0].clip_duration = 0.6
+    await _play(hass, [speakers[0]], TTS_OTHER)
+    started = time.monotonic()
+    await asyncio.gather(
+        _play(hass, speakers[:2]),
+        _play(hass, [speakers[2], fourth_id]),
+    )
+    assert displays[2].played_at[-1] - started < 0.3
+    assert _spread([displays[2], fourth]) < TOGETHER
+    assert displays[0].played_at[-1] - started >= 0.5
+
+
+async def test_sessions_sharing_a_display_take_turns(
+    hass: HomeAssistant, displays: list[FakeDisplay], entries: list[MockConfigEntry], tts_audio
+) -> None:
+    """Two sessions with a display in common play one after the other."""
+    speakers = _speakers(hass)
+    await asyncio.gather(
+        _play(hass, speakers[:2]),
+        _play(hass, speakers[1:], TTS_OTHER),
+    )
+    assert [len(d.played) for d in displays] == [1, 2, 1]
+    # A started with one of B's two starts, C with the other
+    first, second = displays[1].played_at
+    a_start, c_start = displays[0].played_at[0], displays[2].played_at[0]
+    assert min(abs(a_start - first), abs(a_start - second)) < TOGETHER
+    assert min(abs(c_start - first), abs(c_start - second)) < TOGETHER
+    assert abs(a_start - c_start) >= TOGETHER / 2
+
+
+async def test_group_follows_renamed_member(
+    hass: HomeAssistant, displays: list[FakeDisplay], entries: list[MockConfigEntry], tts_audio
+) -> None:
+    """A member whose entity ID changes stays in the group."""
+    speakers = _speakers(hass)
+    entry = await _create_group(hass, speakers[:2])
+    group = _group_id(hass, entry)
+    er.async_get(hass).async_update_entity(speakers[0], new_entity_id="media_player.kitchen")
+    await hass.async_block_till_done()
+    assert hass.states.get(group).attributes[ATTR_ENTITY_ID] == [
+        "media_player.kitchen",
+        speakers[1],
+    ]
+    await _play(hass, [group])
+    assert displays[0].played and displays[1].played
+
+
+async def test_options_leave_out_removed_members(
+    hass: HomeAssistant, displays: list[FakeDisplay], entries: list[MockConfigEntry]
+) -> None:
+    """The members form only shows members that are still speakers."""
+    speakers = _speakers(hass)
+    entry = await _create_group(hass, speakers)
+    await hass.config_entries.async_remove(entries[2].entry_id)
+    await hass.async_block_till_done()
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    (key,) = result["data_schema"].schema
+    assert key.description["suggested_value"] == speakers[:2]

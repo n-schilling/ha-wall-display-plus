@@ -12,15 +12,16 @@ for the same media with the same extra form a session:
    display waits at most SYNC_TIMEOUT for the others; a display that is not
    ready by then does not play and its call fails.
 
-Sessions with several displays run one after another, so two sessions never
-wait for each other's displays.
+Sessions with several displays that share a display run one after another,
+so two sessions never wait for each other's displays; sessions on different
+displays run at the same time.
 """
 
 from __future__ import annotations
 
 import asyncio
 from collections.abc import Sequence
-from contextlib import AbstractAsyncContextManager, nullcontext
+import copy
 from dataclasses import dataclass, field
 import json
 import time
@@ -89,8 +90,10 @@ class SyncManager:
         """Initialize the manager."""
         self._hass = hass
         self._sessions: dict[tuple[str, str, str], _Session] = {}
-        # Sessions with several displays run one after another
-        self._lock = asyncio.Lock()
+        # Displays of the running sessions with several displays; a session
+        # that shares a display with one of them waits until it has started.
+        self._busy: set[str] = set()
+        self._busy_changed = asyncio.Condition()
         # Speaker entities by entity ID, for the speaker groups
         self.members: dict[str, Member] = {}
 
@@ -143,16 +146,20 @@ class SyncManager:
         )
         session = self._sessions.get(key) if key else None
         new = session is None or not session.open
-        if session is None or not session.open:
+        if new:
             session = _Session(media_id, extra, volume, members[0].entity_id)
             if key:
                 self._sessions[key] = session
-        loop = self._hass.loop
+        assert session is not None
         for member in members:
             # A speaker named twice (directly and in a group) plays once
             if member.entity_id not in session.members:
                 session.members[member.entity_id] = member
-                session.results[member.entity_id] = loop.create_future()
+                result = self._hass.loop.create_future()
+                # A caller that was cancelled meanwhile does not read its
+                # result; mark it read so asyncio does not log it.
+                result.add_done_callback(_consume)
+                session.results[member.entity_id] = result
         if new:
             self._hass.async_create_background_task(
                 self._async_run(session, key), f"{DOMAIN} play together"
@@ -173,14 +180,23 @@ class SyncManager:
             try:
                 announcement = await fetch
             except Exception as err:
+                # Every caller raises its own copy (tracebacks are per raise)
                 for result in session.results.values():
-                    result.set_exception(err)
+                    result.set_exception(copy.copy(err))
                 return
-            lock: AbstractAsyncContextManager[Any] = (
-                self._lock if len(session.members) > 1 else nullcontext()
-            )
-            async with lock:
+            if len(session.members) == 1:
                 await self._async_play_together(session, announcement)
+                return
+            displays = set(session.members)
+            async with self._busy_changed:
+                await self._busy_changed.wait_for(lambda: not displays & self._busy)
+                self._busy |= displays
+            try:
+                await self._async_play_together(session, announcement)
+            finally:
+                async with self._busy_changed:
+                    self._busy -= displays
+                    self._busy_changed.notify_all()
         finally:
             fetch.cancel()
             for result in session.results.values():
@@ -215,12 +231,13 @@ class SyncManager:
                 async with speaker.turn():
                     if start.is_set():
                         raise SyncTimeoutError
-                    item = await speaker.prepare(audio, session.volume)
+                    prepared = await speaker.prepare(audio, session.volume)
                     if start.is_set():
+                        await speaker.discard(audio, prepared)
                         raise SyncTimeoutError
                     done_waiting(member.entity_id, ready=True)
                     await start.wait()
-                    duration = await speaker.start(audio, item)
+                    duration = await speaker.start(audio, prepared)
             except Exception as err:
                 done_waiting(member.entity_id, ready=False)
                 session.results[member.entity_id].set_exception(member.play_error(err))
@@ -233,6 +250,11 @@ class SyncManager:
         finally:
             if timer is not None:
                 timer.cancel()
+
+
+def _consume(result: asyncio.Future[None]) -> None:
+    if not result.cancelled():
+        result.exception()
 
 
 @callback

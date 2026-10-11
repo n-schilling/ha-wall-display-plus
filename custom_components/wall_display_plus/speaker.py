@@ -63,6 +63,14 @@ class ClipAudio:
     data: bytes
 
 
+@dataclass(slots=True, frozen=True)
+class PreparedClip:
+    """A clip that is on the display, ready to play."""
+
+    item: MediaItem
+    cache_hit: bool
+
+
 def cache_key(secret: bytes, source: str) -> str:
     """Return the cache key for what was asked to play."""
     return hmac.new(secret, source.encode(), hashlib.sha256).hexdigest()
@@ -173,21 +181,26 @@ class Speaker:
                     # The volume was set, but the clip did not play
                     await self._restore_volume_now()
 
-    async def prepare(self, audio: ClipAudio, volume: int | None = None) -> MediaItem:
+    async def prepare(self, audio: ClipAudio, volume: int | None = None) -> PreparedClip:
         """Put the clip on the display and set its volume (0-10); do not play yet.
 
         With a volume, the display plays the clip at that volume and goes
-        back to the previous one afterwards.
+        back to the previous one afterwards. A cached clip is recorded in the
+        cache as soon as it is on the display, even if it never starts.
         """
-        item = await self._ensure_on_display(audio)
+        prepared = await self._ensure_on_display(audio)
+        if audio.key is not None:
+            self._remember(audio.key, prepared.item)
         if volume is not None:
             await self._set_volume_for_clip(volume)
-        return item
+        return prepared
 
-    async def start(self, audio: ClipAudio, item: MediaItem) -> float:
+    async def start(self, audio: ClipAudio, prepared: PreparedClip) -> float:
         """Play a prepared clip; return its duration in seconds (0 when unknown)."""
+        item = prepared.item
         result = await self._client.play_alert(item.id)
         self.plays += 1
+        self.cache_hits += prepared.cache_hit
         duration = result.duration
         now = time.monotonic()
         self._busy_until = now + duration + PLAYBACK_MARGIN
@@ -205,21 +218,25 @@ class Speaker:
                 f"{DOMAIN} delete uncached clip",
             )
         else:
-            self._entries[audio.key] = {
-                "filename": item.filename,
-                "last_used": dt_util.utcnow().isoformat(),
-            }
-            self._save()
+            self._remember(audio.key, item)
         return duration
 
-    async def _ensure_on_display(self, audio: ClipAudio) -> MediaItem:
+    async def discard(self, audio: ClipAudio, prepared: PreparedClip) -> None:
+        """Forget a prepared clip that will not play; an uncached one is deleted."""
+        if audio.key is None:
+            await self._try_delete(prepared.item)
+
+    def _remember(self, key: str, item: MediaItem) -> None:
+        self._entries[key] = {"filename": item.filename, "last_used": dt_util.utcnow().isoformat()}
+        self._save()
+
+    async def _ensure_on_display(self, audio: ClipAudio) -> PreparedClip:
         if audio.key is not None:
             filename = clip_filename(self.tag, audio.key, audio.extension)
             if (entry := self._entries.get(audio.key)) and entry["filename"] == filename:
                 item = await self._client.find_media(filename, attempts=1)
                 if item is not None:
-                    self.cache_hits += 1
-                    return item
+                    return PreparedClip(item, cache_hit=True)
                 _LOGGER.debug("Cached clip %s is gone from the display", filename)
         await self._make_room(audio)
         if audio.key is None:
@@ -231,7 +248,7 @@ class Speaker:
         item = await self._client.find_media(filename)
         if item is None:
             raise WallDisplayError(f"{filename} is not in the media library after the upload")
-        return item
+        return PreparedClip(item, cache_hit=False)
 
     async def _set_volume_for_clip(self, volume: int) -> None:
         """Set the volume for one clip and remember the one to go back to."""

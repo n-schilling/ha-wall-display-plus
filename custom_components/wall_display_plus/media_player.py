@@ -19,9 +19,9 @@ from homeassistant.components.media_player.const import (
 )
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import ATTR_ENTITY_ID, SERVICE_MEDIA_STOP, STATE_UNAVAILABLE, STATE_UNKNOWN
-from homeassistant.core import Event, EventStateChangedData, HomeAssistant, callback
+from homeassistant.core import CALLBACK_TYPE, Event, EventStateChangedData, HomeAssistant, callback
 from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
-from homeassistant.helpers import issue_registry as ir
+from homeassistant.helpers import entity_registry as er, issue_registry as ir
 from homeassistant.helpers.device_registry import DeviceEntryType, DeviceInfo
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.event import async_call_later, async_track_state_change_event
@@ -292,9 +292,11 @@ class SpeakerGroup(MediaPlayerEntity):
 
     def __init__(self, entry: ConfigEntry[Any]) -> None:
         """Initialize the group."""
-        self._members: list[str] = list(entry.options.get(CONF_MEMBERS, []))
+        # Registry IDs: the members stay members when their entity ID changes
+        self._member_ids: list[str] = list(entry.options.get(CONF_MEMBERS, []))
+        self._members: list[str] = []
+        self._unsubscribe_states: CALLBACK_TYPE | None = None
         self._attr_unique_id = entry.entry_id
-        self._attr_extra_state_attributes = {ATTR_ENTITY_ID: self._members}
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, entry.entry_id)},
             name=entry.title,
@@ -325,16 +327,49 @@ class SpeakerGroup(MediaPlayerEntity):
                 return MediaPlayerState.PLAYING
         return MediaPlayerState.IDLE
 
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """Return the members' entity IDs."""
+        return {ATTR_ENTITY_ID: self._members}
+
     async def async_added_to_hass(self) -> None:
-        """Follow the members' states."""
+        """Follow the members' states and entity IDs."""
+        self._resolve_members()
+
+        @callback
+        def _registry_changed(event: Event[er.EventEntityRegistryUpdatedData]) -> None:
+            data = event.data
+            if data["entity_id"] in self._members or (
+                data["action"] == "update" and data.get("old_entity_id") in self._members
+            ):
+                self._resolve_members()
+                self.async_write_ha_state()
+
+        self.async_on_remove(
+            self.hass.bus.async_listen(er.EVENT_ENTITY_REGISTRY_UPDATED, _registry_changed)
+        )
+        self.async_on_remove(self._stop_following_states)
+
+    @callback
+    def _resolve_members(self) -> None:
+        registry = er.async_get(self.hass)
+        resolved = (er.async_resolve_entity_id(registry, m) for m in self._member_ids)
+        self._members = [entity_id for entity_id in resolved if entity_id]
+        self._stop_following_states()
 
         @callback
         def _member_changed(_event: Event[EventStateChangedData]) -> None:
             self.async_write_ha_state()
 
-        self.async_on_remove(
-            async_track_state_change_event(self.hass, self._members, _member_changed)
+        self._unsubscribe_states = async_track_state_change_event(
+            self.hass, self._members, _member_changed
         )
+
+    @callback
+    def _stop_following_states(self) -> None:
+        if self._unsubscribe_states:
+            self._unsubscribe_states()
+            self._unsubscribe_states = None
 
     async def async_play_media(
         self, media_type: MediaType | str, media_id: str, **kwargs: Any

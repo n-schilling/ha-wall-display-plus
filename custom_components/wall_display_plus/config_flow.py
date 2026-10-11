@@ -9,7 +9,12 @@ from typing import Any
 import probatio
 
 from homeassistant.components.media_player.const import DOMAIN as MEDIA_PLAYER_DOMAIN
-from homeassistant.config_entries import ConfigFlow, ConfigFlowResult, OptionsFlowWithReload
+from homeassistant.config_entries import (
+    ConfigEntry,
+    ConfigFlow,
+    ConfigFlowResult,
+    OptionsFlowWithReload,
+)
 from homeassistant.const import CONF_HOST, CONF_NAME, CONF_PASSWORD
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import entity_registry as er
@@ -153,7 +158,7 @@ class WallDisplayConfigFlow(ConfigFlow, domain=DOMAIN):
                 return self.async_create_entry(
                     title=user_input[CONF_NAME].strip(),
                     data={CONF_TYPE: TYPE_GROUP},
-                    options={CONF_MEMBERS: members},
+                    options={CONF_MEMBERS: _registry_ids(self.hass, members)},
                 )
         schema = probatio.Schema({probatio.Required(CONF_NAME): TextSelector()}).extend(
             _members_schema(self.hass).schema
@@ -375,12 +380,14 @@ class GroupOptionsFlowHandler(OptionsFlowWithReload):
             if error := _members_error(members):
                 errors[CONF_MEMBERS] = error
             else:
-                return self.async_create_entry(data={CONF_MEMBERS: members})
+                return self.async_create_entry(
+                    data={CONF_MEMBERS: _registry_ids(self.hass, members)}
+                )
         return self.async_show_form(
             step_id="members",
             data_schema=self.add_suggested_values_to_schema(
                 _members_schema(self.hass),
-                user_input or {CONF_MEMBERS: self.config_entry.options.get(CONF_MEMBERS, [])},
+                user_input or {CONF_MEMBERS: _current_members(self.hass, self.config_entry)},
             ),
             errors=errors,
         )
@@ -409,6 +416,26 @@ def _members_schema(hass: HomeAssistant) -> probatio.Schema:
             )
         }
     )
+
+
+def _registry_ids(hass: HomeAssistant, members: list[str]) -> list[str]:
+    """Store members by registry ID, so they follow a renamed entity ID.
+
+    The selector only accepts registered speakers, so every member is found.
+    """
+    registry = er.async_get(hass)
+    return [entry.id for member in members if (entry := registry.async_get(member))]
+
+
+def _current_members(hass: HomeAssistant, entry: ConfigEntry[Any]) -> list[str]:
+    """Return the entity IDs of the members that are still speakers."""
+    registry = er.async_get(hass)
+    speakers = set(_speakers(hass))
+    resolved = (
+        er.async_resolve_entity_id(registry, member)
+        for member in entry.options.get(CONF_MEMBERS, [])
+    )
+    return [entity_id for entity_id in resolved if entity_id in speakers]
 
 
 def _unique(members: list[str]) -> list[str]:

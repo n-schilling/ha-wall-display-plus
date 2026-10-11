@@ -225,7 +225,7 @@ actions:
 
 ## Known limitations
 
-- **Several displays (experimental)** start within the time the display needs to answer one request, not sample-accurate; on a busy network or a slow display you may hear an echo. Several announcements to several displays play one after another, even if they go to different displays.
+- **Several displays (experimental)** start within the time the display needs to answer one request, not sample-accurate; on a busy network or a slow display you may hear an echo. Two announcements to several displays that share a display play one after another; announcements to different displays play at the same time.
 - **Volume** is the display's current media volume, unless an announcement brings its own (`extra: {volume: …}`). Set the general volume with the official integration's media player.
 - **The TTS voice is not part of the cache.** After changing the voice, press **Clear speaker cache**; cached announcements keep the old voice until they expire otherwise.
 - **What can be played:** text to speech, media sources and absolute `http(s)` URLs that return audio, up to 20 MB. Paths of your Home Assistant instance such as `/api/...` are refused: they would be fetched with a signature, so anyone allowed to call `play_media` could copy protected data into the display's media library, which can be read without a password.
