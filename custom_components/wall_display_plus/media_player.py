@@ -39,7 +39,6 @@ from .const import (
     DEFAULT_MAX_TEXT_LENGTH,
     DOMAIN,
     FREE_SPACE_RESERVE,
-    MEDIA_TYPE_ALERT,
 )
 from .coordinator import WallDisplayConfigEntry, is_group
 from .entity import WallDisplayEntity
@@ -114,17 +113,13 @@ class WallDisplaySpeaker(WallDisplayEntity, MediaPlayerEntity):
 
     @property
     def state(self) -> MediaPlayerState:
-        """Return playing while an alert clip plays."""
+        """Return playing while our clip plays.
+
+        Only the speaker's own timing counts: firmware 2.8.2 keeps reporting
+        an alert clip as playing (enable: true) long after it ended, until
+        something else plays.
+        """
         if time.monotonic() < self.speaker.playing_until:
-            return MediaPlayerState.PLAYING
-        data = self.coordinator.data
-        playback = data.media_status.get("playback") or {}
-        if (
-            playback.get("enable")
-            and playback.get("media_type") == MEDIA_TYPE_ALERT
-            # A status read before our last clip ended may still show that clip
-            and data.fetched_at > self.speaker.playing_until
-        ):
             return MediaPlayerState.PLAYING
         return MediaPlayerState.IDLE
 

@@ -2,6 +2,12 @@
 
 All notable changes are listed here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versions follow [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Fixed
+
+- The speaker no longer shows *playing* after an announcement once the display was polled: firmware 2.8.2 keeps reporting an ended alert clip as playing, so the state now comes from the speaker's own timing only.
+
 ## [0.1.5] - 2026-10-11
 
 ### Fixed

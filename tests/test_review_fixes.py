@@ -18,13 +18,7 @@ from homeassistant.components.media_player import (
     DOMAIN as MP_DOMAIN,
     SERVICE_PLAY_MEDIA,
 )
-from homeassistant.const import (
-    ATTR_ENTITY_ID,
-    SERVICE_MEDIA_STOP,
-    STATE_IDLE,
-    STATE_PLAYING,
-    STATE_UNAVAILABLE,
-)
+from homeassistant.const import ATTR_ENTITY_ID, SERVICE_MEDIA_STOP, STATE_IDLE, STATE_UNAVAILABLE
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
 from homeassistant.util import dt as dt_util
@@ -124,28 +118,6 @@ async def test_clip_end_does_not_touch_the_library(
     await hass.async_block_till_done()
     assert display.list_calls == calls
     assert hass.states.get(_eid(hass, MP_DOMAIN, "speaker")).state == STATE_IDLE
-
-
-async def test_status_read_during_our_clip_does_not_stick(
-    hass: HomeAssistant, display: FakeDisplay, setup_entry: MockConfigEntry, tts_audio
-) -> None:
-    """A poll that saw our clip playing does not keep the speaker playing afterwards."""
-
-    async def playing() -> dict[str, Any]:
-        return {"playback": {"enable": True, "media_type": "ALERT", "volume": 7}}
-
-    display.clip_duration = 30
-    display.get_media_status = playing  # type: ignore[method-assign]
-    await _play(hass)
-    await setup_entry.runtime_data.coordinator.async_refresh()
-    entity_id = _eid(hass, MP_DOMAIN, "speaker")
-    assert hass.states.get(entity_id).state == STATE_PLAYING
-    await _stop(hass)
-    assert hass.states.get(entity_id).state == STATE_IDLE
-    # A later poll that still sees an alert: one started elsewhere
-    await setup_entry.runtime_data.coordinator.async_refresh()
-    await hass.async_block_till_done()
-    assert hass.states.get(entity_id).state == STATE_PLAYING
 
 
 async def test_cpu_temperature_only_when_enabled(

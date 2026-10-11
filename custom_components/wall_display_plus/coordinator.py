@@ -5,7 +5,6 @@ from __future__ import annotations
 import copy
 from dataclasses import dataclass, field
 import logging
-import time
 from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
@@ -32,8 +31,6 @@ class DisplayState:
     cpu_temperature: float | None = None
     cache_clips: int = 0
     cache_bytes: int = 0
-    # time.monotonic() when the status was read
-    fetched_at: float = 0.0
 
 
 @dataclass(slots=True)
@@ -104,7 +101,6 @@ class WallDisplayCoordinator(DataUpdateCoordinator[DisplayState]):
             cpu_temperature=cpu_temperature,
             cache_clips=len(ours),
             cache_bytes=sum(i.size for i in ours),
-            fetched_at=time.monotonic(),
         )
 
     async def _async_cpu_temperature(self) -> float | None:

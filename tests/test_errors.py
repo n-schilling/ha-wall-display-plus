@@ -264,10 +264,10 @@ async def test_state_playing_and_stop(
         )
 
 
-async def test_state_from_polling(
+async def test_state_ignores_the_polled_alert_status(
     hass: HomeAssistant, display: FakeDisplay, setup_entry: MockConfigEntry
 ) -> None:
-    """An alert started elsewhere shows as playing."""
+    """The firmware keeps reporting an ended alert clip as playing; it is not trusted."""
     entity_id = _eid(hass, MP_DOMAIN, "speaker")
 
     async def status() -> dict[str, Any]:
@@ -276,7 +276,7 @@ async def test_state_from_polling(
     display.get_media_status = status  # type: ignore[method-assign]
     async_fire_time_changed(hass, dt_util.utcnow() + UPDATE_INTERVAL + timedelta(seconds=1))
     await hass.async_block_till_done()
-    assert hass.states.get(entity_id).state == STATE_PLAYING
+    assert hass.states.get(entity_id).state == STATE_IDLE
 
 
 async def test_media_source_audio(
