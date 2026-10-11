@@ -49,7 +49,7 @@ TTS = "media-source://tts/tts.piper?message=Hallo&language=de_DE"
 def tts_audio():
     """Let the TTS engine return a few bytes of 'mp3'."""
     with patch(
-        "custom_components.wall_display_plus.media_player.tts.async_get_media_source_audio",
+        "custom_components.wall_display_plus.audio.tts.async_get_media_source_audio",
         AsyncMock(return_value=("mp3", b"ID3fake-audio")),
     ) as mock:
         yield mock
@@ -202,7 +202,7 @@ async def test_tts_engine_failure(
     """A failing TTS engine is reported as such."""
     with (
         patch(
-            "custom_components.wall_display_plus.media_player.tts.async_get_media_source_audio",
+            "custom_components.wall_display_plus.audio.tts.async_get_media_source_audio",
             AsyncMock(side_effect=RuntimeError("engine down")),
         ),
         pytest.raises(HomeAssistantError, match="text-to-speech engine failed"),
@@ -210,7 +210,7 @@ async def test_tts_engine_failure(
         await _play(hass, TTS)
     with (
         patch(
-            "custom_components.wall_display_plus.media_player.tts.async_get_media_source_audio",
+            "custom_components.wall_display_plus.audio.tts.async_get_media_source_audio",
             AsyncMock(side_effect=HomeAssistantError("as is")),
         ),
         pytest.raises(HomeAssistantError, match="as is"),
@@ -230,11 +230,11 @@ async def test_tts_stream_is_resolved_and_not_cached(
     )
     with (
         patch(
-            "custom_components.wall_display_plus.media_player.media_source.async_resolve_media",
+            "custom_components.wall_display_plus.audio.media_source.async_resolve_media",
             AsyncMock(return_value=item),
         ),
         patch(
-            "custom_components.wall_display_plus.media_player.async_process_play_media_url",
+            "custom_components.wall_display_plus.audio.async_process_play_media_url",
             return_value="http://example.local/api/tts_proxy/abc123.mp3",
         ),
     ):
@@ -287,11 +287,11 @@ async def test_media_source_audio(
     aioclient_mock.get("http://example.local/media/local/ding.mp3?authSig=x", content=b"ID3")
     with (
         patch(
-            "custom_components.wall_display_plus.media_player.media_source.async_resolve_media",
+            "custom_components.wall_display_plus.audio.media_source.async_resolve_media",
             AsyncMock(return_value=play_item),
         ),
         patch(
-            "custom_components.wall_display_plus.media_player.async_process_play_media_url",
+            "custom_components.wall_display_plus.audio.async_process_play_media_url",
             return_value="http://example.local/media/local/ding.mp3?authSig=x",
         ) as sign,
     ):
@@ -312,7 +312,7 @@ async def test_media_source_not_audio(
     """A picture from a media source is refused before downloading."""
     with (
         patch(
-            "custom_components.wall_display_plus.media_player.media_source.async_resolve_media",
+            "custom_components.wall_display_plus.audio.media_source.async_resolve_media",
             AsyncMock(return_value=MagicMock(url="/media/local/a.jpg", mime_type="image/jpeg")),
         ),
         pytest.raises(ServiceValidationError, match="not audio"),
@@ -351,7 +351,7 @@ async def test_download_too_large_without_length(
         "http://example.test/big.mp3", content=b"x" * 64, headers={"Content-Type": "audio/mpeg"}
     )
     with (
-        patch("custom_components.wall_display_plus.media_player.MAX_CLIP_BYTES", 10),
+        patch("custom_components.wall_display_plus.audio.MAX_CLIP_BYTES", 10),
         pytest.raises(HomeAssistantError, match="20 MB"),
     ):
         await _play(hass, "http://example.test/big.mp3")

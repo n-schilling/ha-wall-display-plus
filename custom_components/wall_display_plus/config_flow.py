@@ -8,11 +8,15 @@ from typing import Any
 
 import probatio
 
+from homeassistant.components.media_player.const import DOMAIN as MEDIA_PLAYER_DOMAIN
 from homeassistant.config_entries import ConfigFlow, ConfigFlowResult, OptionsFlowWithReload
-from homeassistant.const import CONF_HOST, CONF_PASSWORD
-from homeassistant.core import callback
+from homeassistant.const import CONF_HOST, CONF_NAME, CONF_PASSWORD
+from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.selector import (
+    EntitySelector,
+    EntitySelectorConfig,
     NumberSelector,
     NumberSelectorConfig,
     NumberSelectorMode,
@@ -27,6 +31,8 @@ from .const import (
     CONF_CACHE_DAYS,
     CONF_CACHE_MAX_MB,
     CONF_MAX_TEXT_LENGTH,
+    CONF_MEMBERS,
+    CONF_TYPE,
     DEFAULT_CACHE_DAYS,
     DEFAULT_CACHE_MAX_MB,
     DEFAULT_MAX_TEXT_LENGTH,
@@ -37,8 +43,9 @@ from .const import (
     MIN_CACHE_DAYS,
     MIN_CACHE_MAX_MB,
     MIN_MAX_TEXT_LENGTH,
+    TYPE_GROUP,
 )
-from .coordinator import WallDisplayConfigEntry
+from .coordinator import WallDisplayConfigEntry, is_group
 
 PASSWORD_SELECTOR = TextSelector(TextSelectorConfig(type=TextSelectorType.PASSWORD))
 
@@ -109,6 +116,14 @@ class WallDisplayConfigFlow(ConfigFlow, domain=DOMAIN):
         return None
 
     async def async_step_user(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        """Add a display; with two displays or more, offer a speaker group."""
+        if user_input is None and len(_speakers(self.hass)) >= 2:
+            return self.async_show_menu(step_id="user", menu_options=["display", "group"])
+        return await self.async_step_display(user_input)
+
+    async def async_step_display(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
         """Ask for the address and, if set on the display, the password."""
         errors: dict[str, str] = {}
         if user_input is not None:
@@ -122,8 +137,30 @@ class WallDisplayConfigFlow(ConfigFlow, domain=DOMAIN):
                     title=name, data={CONF_HOST: host, CONF_PASSWORD: password}
                 )
         return self.async_show_form(
-            step_id="user",
+            step_id="display",
             data_schema=self.add_suggested_values_to_schema(_connection_schema(), user_input),
+            errors=errors,
+        )
+
+    async def async_step_group(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        """Create a speaker group (experimental)."""
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            members = _unique(user_input[CONF_MEMBERS])
+            if error := _members_error(members):
+                errors[CONF_MEMBERS] = error
+            else:
+                return self.async_create_entry(
+                    title=user_input[CONF_NAME].strip(),
+                    data={CONF_TYPE: TYPE_GROUP},
+                    options={CONF_MEMBERS: members},
+                )
+        schema = probatio.Schema({probatio.Required(CONF_NAME): TextSelector()}).extend(
+            _members_schema(self.hass).schema
+        )
+        return self.async_show_form(
+            step_id="group",
+            data_schema=self.add_suggested_values_to_schema(schema, user_input),
             errors=errors,
         )
 
@@ -254,8 +291,12 @@ class WallDisplayConfigFlow(ConfigFlow, domain=DOMAIN):
 
     @staticmethod
     @callback
-    def async_get_options_flow(config_entry: WallDisplayConfigEntry) -> OptionsFlowHandler:
+    def async_get_options_flow(
+        config_entry: WallDisplayConfigEntry,
+    ) -> OptionsFlowHandler | GroupOptionsFlowHandler:
         """Return the options flow."""
+        if is_group(config_entry):
+            return GroupOptionsFlowHandler()
         return OptionsFlowHandler()
 
 
@@ -315,3 +356,70 @@ class OptionsFlowHandler(OptionsFlowWithReload):
                 }
             ),
         )
+
+
+class GroupOptionsFlowHandler(OptionsFlowWithReload):
+    """The members of a speaker group."""
+
+    async def async_step_init(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        """Show the members."""
+        return await self.async_step_members(user_input)
+
+    async def async_step_members(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Change the members."""
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            members = _unique(user_input[CONF_MEMBERS])
+            if error := _members_error(members):
+                errors[CONF_MEMBERS] = error
+            else:
+                return self.async_create_entry(data={CONF_MEMBERS: members})
+        return self.async_show_form(
+            step_id="members",
+            data_schema=self.add_suggested_values_to_schema(
+                _members_schema(self.hass),
+                user_input or {CONF_MEMBERS: self.config_entry.options.get(CONF_MEMBERS, [])},
+            ),
+            errors=errors,
+        )
+
+
+def _speakers(hass: HomeAssistant) -> list[str]:
+    """Return the entity IDs of the displays' speakers (not of speaker groups)."""
+    registry = er.async_get(hass)
+    speakers: list[str] = []
+    for entry in hass.config_entries.async_entries(DOMAIN):
+        if is_group(entry):
+            continue
+        speakers.extend(
+            e.entity_id
+            for e in er.async_entries_for_config_entry(registry, entry.entry_id)
+            if e.domain == MEDIA_PLAYER_DOMAIN
+        )
+    return speakers
+
+
+def _members_schema(hass: HomeAssistant) -> probatio.Schema:
+    return probatio.Schema(
+        {
+            probatio.Required(CONF_MEMBERS): EntitySelector(
+                EntitySelectorConfig(include_entities=_speakers(hass), multiple=True)
+            )
+        }
+    )
+
+
+def _unique(members: list[str]) -> list[str]:
+    return list(dict.fromkeys(members))
+
+
+def _members_error(members: list[str]) -> str | None:
+    """Check that the group has at least two speakers.
+
+    The selector only accepts speakers of displays, never speaker groups.
+    """
+    if len(members) < 2:
+        return "too_few_members"
+    return None

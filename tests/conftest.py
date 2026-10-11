@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Generator
 import copy
+import time
 from typing import Any
 from unittest.mock import patch
 
@@ -34,7 +36,8 @@ def own_file(entry: MockConfigEntry, name: str) -> str:
 class FakeDisplay:
     """Behaves like the display's RPC interface, as far as the integration uses it."""
 
-    def __init__(self) -> None:
+    def __init__(self, mac: str = MAC) -> None:
+        self.mac = mac
         self.reachable = True
         self.password: str | None = None
         self.auth_enabled = False
@@ -46,6 +49,9 @@ class FakeDisplay:
         }
         self.uploads: list[tuple[str, str, int]] = []
         self.played: list[int] = []
+        self.played_at: list[float] = []
+        self.upload_delay = 0.0
+        self.stops = 0
         self.deleted: list[int] = []
         self.wake_screen = True
         self.motion_writes = 0
@@ -102,7 +108,7 @@ class FakeDisplay:
     async def get_device_info(self) -> DeviceInfo:
         self._check()
         return DeviceInfo(
-            mac=MAC,
+            mac=self.mac,
             model=self.model,
             firmware="2.8.2",
             app=self.app,
@@ -125,6 +131,8 @@ class FakeDisplay:
 
     async def upload(self, filename: str, media_type: str, data: bytes) -> None:
         self._check_auth()
+        if self.upload_delay:
+            await asyncio.sleep(self.upload_delay)
         existing = self.by_name(filename)
         if existing:
             del self.library[existing.id]
@@ -151,10 +159,12 @@ class FakeDisplay:
         self._check_auth()
         assert self.library[media_id].type == "ALERT"
         self.played.append(media_id)
+        self.played_at.append(time.monotonic())
         return PlaybackResult(duration=self.clip_duration)
 
     async def stop(self) -> None:
         self._check_auth()
+        self.stops += 1
 
     async def get_media_status(self) -> dict[str, Any]:
         self._check_auth()

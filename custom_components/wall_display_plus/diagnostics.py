@@ -18,7 +18,8 @@ from homeassistant.core import HomeAssistant
 from homeassistant.util import dt as dt_util
 
 from .api import WallDisplayError
-from .coordinator import WallDisplayConfigEntry
+from .const import CONF_MEMBERS
+from .coordinator import WallDisplayConfigEntry, is_group
 from .speaker import owns, parse_timestamp
 
 PLAYBACK_FIELDS = ("enable", "buffering", "volume", "media_type")
@@ -28,6 +29,8 @@ async def async_get_config_entry_diagnostics(
     hass: HomeAssistant, entry: WallDisplayConfigEntry
 ) -> dict[str, Any]:
     """Return what helps to understand a problem, and nothing personal."""
+    if is_group(entry):
+        return {"type": "group", "members": len(entry.options.get(CONF_MEMBERS, []))}
     runtime = entry.runtime_data
     clips: dict[str, Any] | str
     try:

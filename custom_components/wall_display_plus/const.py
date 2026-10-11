@@ -7,6 +7,11 @@ from typing import Final
 
 DOMAIN: Final = "wall_display_plus"
 
+# A config entry is either a display or a speaker group (experimental).
+CONF_TYPE: Final = "type"
+TYPE_GROUP: Final = "group"
+CONF_MEMBERS: Final = "members"
+
 CONF_CACHE_DAYS: Final = "cache_days"
 CONF_CACHE_MAX_MB: Final = "cache_max_mb"
 CONF_MAX_TEXT_LENGTH: Final = "max_text_length"

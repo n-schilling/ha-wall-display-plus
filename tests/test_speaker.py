@@ -33,7 +33,7 @@ TTS_OTHER = "media-source://tts/tts.piper?message=Tsch%C3%BCss&language=de_DE"
 def tts_audio():
     """Let the TTS engine return a few bytes of 'mp3'."""
     with patch(
-        "custom_components.wall_display_plus.media_player.tts.async_get_media_source_audio",
+        "custom_components.wall_display_plus.audio.tts.async_get_media_source_audio",
         AsyncMock(return_value=("mp3", b"ID3fake-audio")),
     ) as mock:
         yield mock
@@ -208,9 +208,7 @@ async def test_relative_path_is_refused_and_not_signed(
 ) -> None:
     """A path of this instance is never fetched with a signature (no SSRF)."""
     with (
-        patch(
-            "custom_components.wall_display_plus.media_player.async_process_play_media_url"
-        ) as sign,
+        patch("custom_components.wall_display_plus.audio.async_process_play_media_url") as sign,
         pytest.raises(HomeAssistantError, match="Only text to speech"),
     ):
         await _play(hass, "/api/config/core/check_config")

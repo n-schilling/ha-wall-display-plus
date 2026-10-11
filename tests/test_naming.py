@@ -32,7 +32,7 @@ OTHER_INSTANCE = "homeassistant_ffffff_0123456789abcdef01234567.mp3"
 def tts_audio():
     """Let the TTS engine return a few bytes of 'mp3'."""
     with patch(
-        "custom_components.wall_display_plus.media_player.tts.async_get_media_source_audio",
+        "custom_components.wall_display_plus.audio.tts.async_get_media_source_audio",
         AsyncMock(return_value=("mp3", b"ID3fake-audio")),
     ) as mock:
         yield mock

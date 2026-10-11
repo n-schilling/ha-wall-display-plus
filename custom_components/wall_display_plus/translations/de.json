@@ -2,6 +2,13 @@
   "config": {
     "step": {
       "user": {
+        "description": "Ein weiteres Wall Display hinzufügen oder Displays gruppieren, um Ansagen auf allen gleichzeitig abzuspielen.",
+        "menu_options": {
+          "display": "Wall Display",
+          "group": "Lautsprechergruppe (experimentell)"
+        }
+      },
+      "display": {
         "description": "Ein Wall Display über seine IP-Adresse oder seinen Hostnamen hinzufügen. Das Passwort ist nur nötig, wenn am Display eines gesetzt ist.",
         "data": {
           "host": "Host",
@@ -10,6 +17,17 @@
         "data_description": {
           "host": "IP-Adresse oder Hostname des Displays, zum Beispiel 192.168.1.50.",
           "password": "Leer lassen, wenn das Display kein Passwort hat."
+        }
+      },
+      "group": {
+        "description": "Eine Lautsprechergruppe spielt auf allen Mitgliedern gleichzeitig. Experimentell: Wie genau das zusammenpasst, hängt vom Netzwerk und den Displays ab.",
+        "data": {
+          "name": "Name",
+          "members": "Lautsprecher"
+        },
+        "data_description": {
+          "name": "Name des Mediaplayers der Gruppe.",
+          "members": "Die Lautsprecher von mindestens zwei Wall Displays."
         }
       },
       "reconfigure": {
@@ -45,7 +63,8 @@
     "error": {
       "cannot_connect": "Das Display antwortet nicht. Adresse prüfen und ob es eingeschaltet ist.",
       "invalid_auth": "Das Display braucht ein Passwort, oder das Passwort ist falsch.",
-      "not_wall_display": "Dieses Gerät ist kein Wall Display."
+      "not_wall_display": "Dieses Gerät ist kein Wall Display.",
+      "too_few_members": "Bitte mindestens zwei Lautsprecher wählen."
     },
     "abort": {
       "already_configured": "Dieses Display ist bereits eingerichtet.",
@@ -71,7 +90,19 @@
           "cache_max_mb": "So viel Speicher dürfen die gecachten Clips auf dem Display höchstens belegen. Passt ein neuer Clip nicht mehr, werden die am längsten nicht abgespielten gelöscht.",
           "max_text_length": "Längere Texte werden abgelehnt, bevor die Sprachausgabe startet, damit ein versehentlich eingefügter Text keine Rechenzeit kostet. 500 Zeichen sind etwa 35 Sekunden Sprache."
         }
+      },
+      "members": {
+        "description": "Die Lautsprecher dieser Gruppe (experimentell).",
+        "data": {
+          "members": "Lautsprecher"
+        },
+        "data_description": {
+          "members": "Die Lautsprecher von mindestens zwei Wall Displays."
+        }
       }
+    },
+    "error": {
+      "too_few_members": "Bitte mindestens zwei Lautsprecher wählen."
     }
   },
   "entity": {
@@ -197,6 +228,15 @@
     },
     "restart_failed": {
       "message": "Die Display-App konnte nicht neu gestartet werden: {error}"
+    },
+    "sync_timeout": {
+      "message": "Das Display war nicht innerhalb von {timeout} Sekunden bereit; die anderen Lautsprecher haben ohne es gespielt."
+    },
+    "group_failed": {
+      "message": "{failed} von {total} Lautsprechern konnten den Clip nicht abspielen: {error}"
+    },
+    "group_unavailable": {
+      "message": "Kein Lautsprecher der Gruppe ist verfügbar."
     }
   },
   "issues": {

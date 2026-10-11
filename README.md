@@ -20,7 +20,7 @@ The official integration's media player only plays files that are already in the
 3. The display plays the clip once.
 4. The clip stays on the display, within a size limit (500 MB by default). The same announcement later starts at once, without creating and uploading it again. A clip is deleted when it was not played for 90 days (configurable). If a clip is gone from the display for whatever reason, it is uploaded again.
 
-Announcements play one after another; a second one waits for the first to finish.
+Announcements play one after another; a second one waits for the first to finish. Several displays can play the same announcement at the same time; see [Several displays](#several-displays-experimental) (experimental).
 
 ## Supported devices
 
@@ -57,6 +57,8 @@ The address and the password can be changed later with **Reconfigure**. If the d
 | Maximum cache size | 500 MB | The cached clips may take at most this much storage on the display (10–10000 MB). When a new clip does not fit, the clips played longest ago are deleted first. A single clip larger than the limit is played once and not kept. |
 | Maximum text length | 500 characters | Longer texts are refused before the text-to-speech engine runs (50–5000). 500 characters are about 35 seconds of speech. |
 
+A speaker group (experimental) has one option, its **Speakers**: the speakers of at least two displays.
+
 ## Text-to-speech engine
 
 The integration plays what a text-to-speech engine produces; it does not speak itself. Any engine in Home Assistant works, for example **Piper** (local, as a Home Assistant app with the Wyoming integration), Home Assistant Cloud or Google Translate.
@@ -87,6 +89,7 @@ Since Home Assistant 2026.10 a device belongs to a single integration, so the en
 | Entity | What it does |
 |---|---|
 | Speaker (`media_player`) | Plays text to speech, media sources and audio URLs as announcements. Supports `tts.speak`, `media_player.play_media` (with `announce`), stop and media browsing (audio only). |
+| Speaker group (`media_player`, experimental) | Plays on all its member speakers at the same time; see [Several displays](#several-displays-experimental). Attribute `entity_id` lists the members. |
 | Motion wakes screen (`switch`, configuration) | Whether motion in front of the display wakes the screen. Touch always does. |
 | Dim screen when idle, Turn screen off when idle, Screen saver (`switch`, configuration) | The display's own screen settings. |
 | Minimum brightness, Dim after, Screen off after, Screen saver after (`number`, configuration) | Minimum brightness in %, timeouts 10–3600 s. |
@@ -98,6 +101,35 @@ Since Home Assistant 2026.10 a device belongs to a single integration, so the en
 Manual brightness and automatic brightness are left out on purpose: while automatic brightness is on, the display reports its current brightness (0 while the screen is off) as the manual level, so turning the automatic off could leave the screen black.
 
 `media_player.play_media` accepts `extra: {cache: false}` to play a clip without keeping it, and `extra: {volume: 0.8}` (0–1, like `volume_set`) to play one announcement at its own volume; the display goes back to its previous volume afterwards.
+
+## Several displays (experimental)
+
+> **Experimental.** Playing on several displays at the same time is new and was tested with simulated displays only. How close together the displays start depends on the network and the displays. Behavior and options may still change. Please report what you observe in an [issue](https://github.com/n-schilling/ha-wall-display-plus/issues).
+
+One announcement for several displays plays on all of them at the same time:
+
+1. Home Assistant creates the audio **once** (the text-to-speech engine runs once, a URL is downloaded once).
+2. Each display gets ready: it waits until its previous announcement has finished, uploads the clip if it does not have it yet, and sets the announcement's volume.
+3. When all displays are ready, all start together. A display that already has the clip waits for the one that still uploads.
+4. The first ready display waits **at most 10 seconds** for the others. A display that is not ready by then does not play, and the action reports it as an error. The others have played.
+
+This works in two ways, without anything else to set up:
+
+- **Dynamic:** all speakers in one action call, for example `tts.speak` with several `media_player_entity_id`, or `media_player.play_media` with several entities. A media player group helper of Home Assistant works the same way.
+- **Speaker group:** a fixed group as its own media player, for automations that always announce in the same rooms. Add it with **Add integration → Wall Display Plus → Speaker group (experimental)** (offered once at least two displays are set up); change its members with **Configure**. The group's state is *playing* while any member plays; members that are unavailable are left out. Unlike a media player group helper, it waits until all members have started and reports failed members as an error.
+
+A speaker that is targeted twice in one action (directly and through a group) plays once.
+
+```yaml
+action: tts.speak
+target:
+  entity_id: tts.piper
+data:
+  media_player_entity_id:
+    - media_player.living_room_wall_display_speaker
+    - media_player.kitchen_wall_display_speaker
+  message: Dinner is ready.
+```
 
 ## Data updates
 
@@ -193,6 +225,7 @@ actions:
 
 ## Known limitations
 
+- **Several displays (experimental)** start within the time the display needs to answer one request, not sample-accurate; on a busy network or a slow display you may hear an echo. Several announcements to several displays play one after another, even if they go to different displays.
 - **Volume** is the display's current media volume, unless an announcement brings its own (`extra: {volume: …}`). Set the general volume with the official integration's media player.
 - **The TTS voice is not part of the cache.** After changing the voice, press **Clear speaker cache**; cached announcements keep the old voice until they expire otherwise.
 - **What can be played:** text to speech, media sources and absolute `http(s)` URLs that return audio, up to 20 MB. Paths of your Home Assistant instance such as `/api/...` are refused: they would be fetched with a signature, so anyone allowed to call `play_media` could copy protected data into the display's media library, which can be read without a password.

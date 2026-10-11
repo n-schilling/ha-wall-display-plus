@@ -1,4 +1,7 @@
-"""Wall Display Plus: speaker and motion settings for a wall display."""
+"""Wall Display Plus: speaker and screen settings for wall displays.
+
+A config entry is a display or a speaker group (experimental) of displays.
+"""
 
 from __future__ import annotations
 
@@ -24,7 +27,7 @@ from .const import (
     DOMAIN,
     STORAGE_VERSION,
 )
-from .coordinator import RuntimeData, WallDisplayConfigEntry, WallDisplayCoordinator
+from .coordinator import RuntimeData, WallDisplayConfigEntry, WallDisplayCoordinator, is_group
 from .speaker import Speaker, owns
 
 _LOGGER = logging.getLogger(__name__)
@@ -39,10 +42,14 @@ PLATFORMS: list[Platform] = [
     Platform.SENSOR,
     Platform.SWITCH,
 ]
+GROUP_PLATFORMS: list[Platform] = [Platform.MEDIA_PLAYER]
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: WallDisplayConfigEntry) -> bool:
-    """Set up one wall display."""
+    """Set up one wall display or a speaker group."""
+    if is_group(entry):
+        await hass.config_entries.async_forward_entry_setups(entry, GROUP_PLATFORMS)
+        return True
     client = WallDisplayClient(
         async_get_clientsession(hass),
         entry.data[CONF_HOST],
@@ -105,7 +112,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: WallDisplayConfigEntry) 
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: WallDisplayConfigEntry) -> bool:
-    """Unload one wall display."""
+    """Unload one wall display or a speaker group."""
+    if is_group(entry):
+        return await hass.config_entries.async_unload_platforms(entry, GROUP_PLATFORMS)
     if unloaded := await hass.config_entries.async_unload_platforms(entry, PLATFORMS):
         await entry.runtime_data.speaker.async_flush()
     return unloaded
@@ -117,6 +126,8 @@ async def async_remove_entry(hass: HomeAssistant, entry: WallDisplayConfigEntry)
     One attempt with a short timeout: an unreachable display must not block
     the removal. The README names the "Clear speaker cache" button for that case.
     """
+    if is_group(entry):
+        return
     client = WallDisplayClient(
         async_get_clientsession(hass), entry.data[CONF_HOST], entry.data.get(CONF_PASSWORD)
     )

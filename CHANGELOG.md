@@ -23,6 +23,8 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 - Polls the display every 10 minutes only (the display is a small device). Changes the integration makes, uploads and deletions of clips and failed announcements refresh at once; `homeassistant.update_entity` refreshes on demand.
 - Discovery of displays on the network (zeroconf); a known display with a new address is updated only without a password and only if the device at the new address reports the same MAC.
 - Setup by IP address with optional password (digest authentication), reconfiguration, re-authentication, diagnostics, a repair issue when the firmware no longer supports the speaker. English and German.
+- Several displays at the same time (**experimental**): the speakers of one action call (`tts.speak` with several speakers, `play_media` with several entities, a media player group helper) play one announcement together. The audio is created once; displays that have the clip wait for those that upload it, at most 10 seconds after the first is ready. A display not ready by then does not play and is reported as an error.
+- Speaker groups (**experimental**): a fixed group of speakers as its own media player, added once at least two displays are set up, members changed in its options. It waits until all members have started and reports failed members.
 - Checked against the Home Assistant integration quality scale up to platinum (`quality_scale.yaml`): strict typing, 99 % test coverage, translated errors, brand images.
 
 [0.1.0]: https://github.com/n-schilling/ha-wall-display-plus/releases/tag/v0.1.0

@@ -13,7 +13,7 @@ from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .api import DeviceInfo, WallDisplayAuthError, WallDisplayClient, WallDisplayError
-from .const import DOMAIN, UPDATE_INTERVAL
+from .const import CONF_TYPE, DOMAIN, TYPE_GROUP, UPDATE_INTERVAL
 from .speaker import Speaker, owns
 
 _LOGGER = logging.getLogger(__name__)
@@ -45,8 +45,13 @@ class RuntimeData:
 type WallDisplayConfigEntry = ConfigEntry[RuntimeData]
 
 
+def is_group(entry: ConfigEntry[Any]) -> bool:
+    """Return whether the entry is a speaker group instead of a display."""
+    return entry.data.get(CONF_TYPE) == TYPE_GROUP
+
+
 class WallDisplayCoordinator(DataUpdateCoordinator[DisplayState]):
-    """Read the display's status and settings every 30 seconds."""
+    """Read the display's status and settings every 10 minutes."""
 
     config_entry: WallDisplayConfigEntry
 

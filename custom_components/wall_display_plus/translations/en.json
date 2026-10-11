@@ -2,6 +2,13 @@
   "config": {
     "step": {
       "user": {
+        "description": "Add another wall display, or group displays to play announcements on all of them at the same time.",
+        "menu_options": {
+          "display": "Wall display",
+          "group": "Speaker group (experimental)"
+        }
+      },
+      "display": {
         "description": "Add a wall display by its IP address or host name. The password is only needed if one is set on the display.",
         "data": {
           "host": "Host",
@@ -10,6 +17,17 @@
         "data_description": {
           "host": "IP address or host name of the display, for example 192.168.1.50.",
           "password": "Leave empty if the display has no password."
+        }
+      },
+      "group": {
+        "description": "A speaker group plays on all its members at the same time. Experimental: the timing depends on the network and the displays.",
+        "data": {
+          "name": "Name",
+          "members": "Speakers"
+        },
+        "data_description": {
+          "name": "Name of the group's media player.",
+          "members": "The speakers of at least two wall displays."
         }
       },
       "reconfigure": {
@@ -45,7 +63,8 @@
     "error": {
       "cannot_connect": "The display does not answer. Check the address and that it is switched on.",
       "invalid_auth": "The display needs a password, or the password is wrong.",
-      "not_wall_display": "This device is not a wall display."
+      "not_wall_display": "This device is not a wall display.",
+      "too_few_members": "Choose at least two speakers."
     },
     "abort": {
       "already_configured": "This display is already set up.",
@@ -71,7 +90,19 @@
           "cache_max_mb": "The cached clips may take at most this much storage on the display. When a new clip does not fit, the clips played longest ago are deleted.",
           "max_text_length": "Longer texts are refused before the text-to-speech engine runs, so a text pasted by mistake costs no computing time. 500 characters are about 35 seconds of speech."
         }
+      },
+      "members": {
+        "description": "The speakers of this group (experimental).",
+        "data": {
+          "members": "Speakers"
+        },
+        "data_description": {
+          "members": "The speakers of at least two wall displays."
+        }
       }
+    },
+    "error": {
+      "too_few_members": "Choose at least two speakers."
     }
   },
   "entity": {
@@ -197,6 +228,15 @@
     },
     "restart_failed": {
       "message": "The display app could not be restarted: {error}"
+    },
+    "sync_timeout": {
+      "message": "The display was not ready within {timeout} seconds; the other speakers played without it."
+    },
+    "group_failed": {
+      "message": "{failed} of {total} speakers could not play the clip: {error}"
+    },
+    "group_unavailable": {
+      "message": "No speaker of the group is available."
     }
   },
   "issues": {

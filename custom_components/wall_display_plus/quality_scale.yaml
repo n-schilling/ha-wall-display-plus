@@ -40,7 +40,11 @@ rules:
   runtime-data: done
   test-before-configure: done
   test-before-setup: done
-  unique-config-entry: done
+  unique-config-entry:
+    status: done
+    comment: >-
+      A display can be added once (unique ID: its MAC). Speaker groups are
+      allowed several times, like other helpers.
 
   # Silver
   action-exceptions: done
@@ -72,7 +76,9 @@ rules:
   docs-use-cases: done
   dynamic-devices:
     status: exempt
-    comment: One config entry is exactly one display; no devices appear later.
+    comment: >-
+      One config entry is exactly one display or one speaker group; no devices
+      appear later.
   entity-category: done
   entity-device-class: done
   entity-disabled-by-default:
@@ -88,7 +94,9 @@ rules:
   repair-issues: done
   stale-devices:
     status: exempt
-    comment: One config entry is exactly one display; removing the entry removes the device.
+    comment: >-
+      One config entry is exactly one display or one speaker group; removing
+      the entry removes the device.
 
   # Platinum
   async-dependency:

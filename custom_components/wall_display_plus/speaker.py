@@ -18,7 +18,8 @@ clip larger than the whole cache is played once and not kept.
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Callable
+from collections.abc import AsyncIterator, Callable
+from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 import hashlib
@@ -152,12 +153,12 @@ class Speaker:
         """Return the share of plays that needed no upload, in percent."""
         return round(100 * self.cache_hits / self.plays, 1) if self.plays else None
 
-    async def async_play(self, audio: ClipAudio, volume: int | None = None) -> float:
-        """Play a clip; return its duration in seconds (0 when unknown).
+    @asynccontextmanager
+    async def turn(self) -> AsyncIterator[None]:
+        """Wait until this display is free, then hold it.
 
         Clips are played one after another: a second announcement waits until
-        the first one has finished. With a volume (0-10), the display plays
-        the clip at that volume and goes back to the previous one afterwards.
+        the first one has finished. Use prepare() and start() inside.
         """
         async with self._lock:
             wait = self._busy_until - time.monotonic()
@@ -165,35 +166,51 @@ class Speaker:
                 await asyncio.sleep(wait)
             # The previous clip has finished: its own volume is no longer needed
             await self._restore_volume_now()
+            try:
+                yield
+            finally:
+                if self._restore_volume is not None and self._restore_task is None:
+                    # The volume was set, but the clip did not play
+                    await self._restore_volume_now()
 
-            item = await self._ensure_on_display(audio)
-            if volume is not None:
-                await self._set_volume_for_clip(volume)
-            result = await self._client.play_alert(item.id)
-            self.plays += 1
-            duration = result.duration
-            now = time.monotonic()
-            self._busy_until = now + duration + PLAYBACK_MARGIN
-            self.playing_until = now + duration
-            if self._restore_volume is not None:
-                self._restore_task = self._hass.async_create_background_task(
-                    self._restore_volume_later(duration + PLAYBACK_MARGIN),
-                    f"{DOMAIN} restore volume",
-                )
+    async def prepare(self, audio: ClipAudio, volume: int | None = None) -> MediaItem:
+        """Put the clip on the display and set its volume (0-10); do not play yet.
 
-            if audio.key is None:
-                # Not cached: delete it once it has been played.
-                self._hass.async_create_background_task(
-                    self._delete_later(item.id, duration + PLAYBACK_MARGIN + DELETE_GRACE),
-                    f"{DOMAIN} delete uncached clip",
-                )
-            else:
-                self._entries[audio.key] = {
-                    "filename": item.filename,
-                    "last_used": dt_util.utcnow().isoformat(),
-                }
-                self._save()
-            return duration
+        With a volume, the display plays the clip at that volume and goes
+        back to the previous one afterwards.
+        """
+        item = await self._ensure_on_display(audio)
+        if volume is not None:
+            await self._set_volume_for_clip(volume)
+        return item
+
+    async def start(self, audio: ClipAudio, item: MediaItem) -> float:
+        """Play a prepared clip; return its duration in seconds (0 when unknown)."""
+        result = await self._client.play_alert(item.id)
+        self.plays += 1
+        duration = result.duration
+        now = time.monotonic()
+        self._busy_until = now + duration + PLAYBACK_MARGIN
+        self.playing_until = now + duration
+        if self._restore_volume is not None:
+            self._restore_task = self._hass.async_create_background_task(
+                self._restore_volume_later(duration + PLAYBACK_MARGIN),
+                f"{DOMAIN} restore volume",
+            )
+
+        if audio.key is None:
+            # Not cached: delete it once it has been played.
+            self._hass.async_create_background_task(
+                self._delete_later(item.id, duration + PLAYBACK_MARGIN + DELETE_GRACE),
+                f"{DOMAIN} delete uncached clip",
+            )
+        else:
+            self._entries[audio.key] = {
+                "filename": item.filename,
+                "last_used": dt_util.utcnow().isoformat(),
+            }
+            self._save()
+        return duration
 
     async def _ensure_on_display(self, audio: ClipAudio) -> MediaItem:
         if audio.key is not None:

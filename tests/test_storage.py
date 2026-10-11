@@ -31,7 +31,7 @@ AUDIO = b"ID3fake-audio"  # 13 bytes per clip
 def tts_audio():
     """Let the TTS engine return a few bytes of 'mp3'."""
     with patch(
-        "custom_components.wall_display_plus.media_player.tts.async_get_media_source_audio",
+        "custom_components.wall_display_plus.audio.tts.async_get_media_source_audio",
         AsyncMock(return_value=("mp3", AUDIO)),
     ) as mock:
         yield mock

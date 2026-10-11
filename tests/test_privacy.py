@@ -34,7 +34,7 @@ TTS = "media-source://tts/tts.piper?message=Die+Waschmaschine+ist+fertig&languag
 def tts_audio():
     """Let the TTS engine return a few bytes of 'mp3'."""
     with patch(
-        "custom_components.wall_display_plus.media_player.tts.async_get_media_source_audio",
+        "custom_components.wall_display_plus.audio.tts.async_get_media_source_audio",
         AsyncMock(return_value=("mp3", b"ID3fake-audio")),
     ) as mock:
         yield mock
@@ -188,7 +188,7 @@ async def test_tts_error_names_only_the_type(
     """A TTS engine's message could quote the text; only its type is passed on."""
     with (
         patch(
-            "custom_components.wall_display_plus.media_player.tts.async_get_media_source_audio",
+            "custom_components.wall_display_plus.audio.tts.async_get_media_source_audio",
             AsyncMock(side_effect=RuntimeError("could not say 'Die Waschmaschine ist fertig'")),
         ),
         pytest.raises(HomeAssistantError) as err,
@@ -247,6 +247,6 @@ async def test_removal_times_out(
 
 def test_unparsable_url_in_message() -> None:
     """A media ID that is no URL at all is described safely."""
-    from custom_components.wall_display_plus.media_player import _without_query
+    from custom_components.wall_display_plus.audio import _without_query
 
     assert _without_query("http://[") == "<invalid URL>"
