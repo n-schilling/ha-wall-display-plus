@@ -2,7 +2,7 @@
 
 All notable changes are listed here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versions follow [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [0.1.1] - 2026-10-11
 
 ### Changed
 
@@ -39,4 +39,5 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 - Speaker groups (**experimental**): a fixed group of speakers as its own media player, added once at least two displays are set up, members changed in its options. It waits until all members have started and reports failed members. Members are stored by their registry ID, so they stay in the group when their entity ID changes.
 - Checked against the Home Assistant integration quality scale up to platinum (`quality_scale.yaml`): strict typing, 99 % test coverage, translated errors, brand images.
 
+[0.1.1]: https://github.com/n-schilling/ha-wall-display-plus/releases/tag/v0.1.1
 [0.1.0]: https://github.com/n-schilling/ha-wall-display-plus/releases/tag/v0.1.0
