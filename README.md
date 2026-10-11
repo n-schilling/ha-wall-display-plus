@@ -252,7 +252,9 @@ actions:
 
 | Problem | What to do |
 |---|---|
-| Nothing to hear | Check the volume of the display (official integration's media player) and that a Bluetooth speaker is not connected instead. |
+| Nothing to hear | Press **Test announcement volume**. If it is too quiet, raise **Announcement volume**; also check that no Bluetooth speaker is connected to the display instead. |
+| "This device is not a Wall Display XL" | Only the Wall Display XL (SAWD-3A1XE10EU2) is supported; see [Supported devices](#supported-devices). |
+| "Reconfigure" on a speaker group | A group has no connection settings; change its speakers with **Configure**. |
 | Repair issue "the firmware does not support the speaker" | The firmware changed the interface. [Open an issue](https://github.com/n-schilling/ha-wall-display-plus/issues/new/choose) with model and firmware. The issue disappears once a clip plays again. |
 | Entities unavailable | The display is off or has a new address. Without a password, discovery picks up the new address; with a password, use **Reconfigure**. |
 | Repair issue "storage almost full" | Delete photos, videos or music in the display's web interface. The issue disappears once a clip plays again. |
@@ -265,7 +267,9 @@ actions:
 1. **Settings → Devices & services → Wall Display Plus → ⋮ → Delete**. The integration deletes its clips from the display on the way.
 2. Remove the integration in HACS and restart Home Assistant.
 
-If the display was not reachable during the removal, its clips stay there. Delete the `homeassistant_` files in the display's web interface.
+If the display was not reachable during the removal, its clips stay there. Delete the files starting with the *File prefix* of the *Cached clips* sensor (`homeassistant_<tag>_`) in the display's web interface.
+
+Speaker groups are entries of their own: delete them the same way. A group whose display was deleted keeps the missing speaker as a member until you change the group's speakers with **Configure**.
 
 The display's motion setting stays as it was last set.
 

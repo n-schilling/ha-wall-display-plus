@@ -73,7 +73,8 @@
       "wrong_device": "Unter dieser Adresse ist ein anderes Display.",
       "cannot_connect": "Das Display antwortet nicht.",
       "ipv6_not_supported": "Erkennung über IPv6 wird nicht unterstützt; das Display über seine IPv4-Adresse hinzufügen.",
-      "not_supported": "Dieses Gerät ist kein Wall Display XL. Unterstützt wird nur das Wall Display XL: Es hat den Lautsprecher und den Bewegungsmelder."
+      "not_supported": "Dieses Gerät ist kein Wall Display XL. Unterstützt wird nur das Wall Display XL: Es hat den Lautsprecher und den Bewegungsmelder.",
+      "group_reconfigure": "Eine Lautsprechergruppe hat keine Verbindungseinstellungen. Die Lautsprecher änderst du unter Konfigurieren."
     },
     "flow_title": "{name}"
   },

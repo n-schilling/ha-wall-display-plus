@@ -2,6 +2,13 @@
 
 All notable changes are listed here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versions follow [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Fixed
+
+- "Reconfigure" on a speaker group failed with an error; it now points to **Configure**, where the group's speakers are changed.
+- README: troubleshooting for the announcement volume, the model check and groups; removal of speaker groups.
+
 ## [0.1.4] - 2026-10-11
 
 ### Added

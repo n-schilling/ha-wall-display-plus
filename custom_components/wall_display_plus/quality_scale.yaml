@@ -91,7 +91,11 @@ rules:
   entity-translations: done
   exception-translations: done
   icon-translations: done
-  reconfiguration-flow: done
+  reconfiguration-flow:
+    status: done
+    comment: >-
+      Displays change address and password; a speaker group has no
+      connection settings, its reconfigure ends with a pointer to Configure.
   repair-issues: done
   stale-devices:
     status: exempt

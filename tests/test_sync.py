@@ -661,3 +661,16 @@ async def test_options_leave_out_removed_members(
     result = await hass.config_entries.options.async_init(entry.entry_id)
     (key,) = result["data_schema"].schema
     assert key.description["suggested_value"] == speakers[:2]
+
+
+async def test_group_cannot_be_reconfigured(
+    hass: HomeAssistant, displays: list[FakeDisplay], entries: list[MockConfigEntry]
+) -> None:
+    """Reconfigure on a group points to Configure instead of failing."""
+    entry = await _create_group(hass, _speakers(hass)[:2])
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN,
+        context={"source": config_entries.SOURCE_RECONFIGURE, "entry_id": entry.entry_id},
+    )
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "group_reconfigure"

@@ -73,7 +73,8 @@
       "wrong_device": "This address belongs to a different display.",
       "cannot_connect": "The display does not answer.",
       "ipv6_not_supported": "Discovery over IPv6 is not supported; add the display by its IPv4 address.",
-      "not_supported": "This device is not a Wall Display XL. Only the Wall Display XL is supported: it has the speaker and the motion sensor."
+      "not_supported": "This device is not a Wall Display XL. Only the Wall Display XL is supported: it has the speaker and the motion sensor.",
+      "group_reconfigure": "A speaker group has no connection settings. Change its speakers with Configure."
     },
     "flow_title": "{name}"
   },

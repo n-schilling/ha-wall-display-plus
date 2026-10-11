@@ -254,6 +254,9 @@ class WallDisplayConfigFlow(ConfigFlow, domain=DOMAIN):
     ) -> ConfigFlowResult:
         """Change the address or the password."""
         entry = self._get_reconfigure_entry()
+        if is_group(entry):
+            # A speaker group has no connection; its members are options
+            return self.async_abort(reason="group_reconfigure")
         errors: dict[str, str] = {}
         if user_input is not None:
             host = user_input[CONF_HOST].strip()
