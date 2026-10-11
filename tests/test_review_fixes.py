@@ -214,3 +214,30 @@ async def test_broken_content_length(
         blocking=True,
     )
     assert display.played
+
+
+async def test_changed_file_behind_the_same_url_is_uploaded_anew(
+    hass: HomeAssistant, aioclient_mock, display: FakeDisplay, setup_entry: MockConfigEntry
+) -> None:
+    """Downloads are cached by content: new content means a new clip, same content a hit."""
+    url = "http://192.0.2.1/latest_message.mp3"
+
+    async def play(content: bytes) -> None:
+        aioclient_mock.clear_requests()
+        aioclient_mock.get(url, content=content, headers={"Content-Type": "audio/mpeg"})
+        await hass.services.async_call(
+            MP_DOMAIN,
+            SERVICE_PLAY_MEDIA,
+            {
+                ATTR_ENTITY_ID: _eid(hass, MP_DOMAIN, "speaker"),
+                ATTR_MEDIA_CONTENT_ID: url,
+                ATTR_MEDIA_CONTENT_TYPE: "music",
+            },
+            blocking=True,
+        )
+
+    await play(b"ID3-first-message")
+    await play(b"ID3-second-message")
+    await play(b"ID3-second-message")
+    assert len(display.uploads) == 2
+    assert len(display.played) == 3

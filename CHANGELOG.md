@@ -6,6 +6,7 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 
 ### Fixed
 
+- A file that changes behind the same URL or media source is played in its new version: downloaded clips are cached by their content instead of their address. Before, the old audio played for up to 90 days.
 - Stopping a clip frees the display at once: the next announcement no longer waits for the rest of the stopped clip, and the volume goes back right away.
 - The cleanup never deletes an uncached clip (`cache: false`, voice assistant streams) that is still to be played.
 - The speaker no longer stays *playing* for up to 10 minutes when a poll happened to read the status while its own clip played.

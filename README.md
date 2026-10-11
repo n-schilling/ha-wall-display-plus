@@ -18,7 +18,7 @@ The official integration's media player only plays files that are already in the
 1. Home Assistant creates the audio: text to speech straight from the TTS engine, other media sources and URLs by download.
 2. The audio goes to the display's media library as an **alert** clip named `homeassistant_<tag>_<key>.<ext>`. The tag is random per Home Assistant instance, so several instances can share one display without touching each other's clips; files of others (music, photos, ringtones) are never touched. Alert clips are separate from music: they do not show up in the music playlist or in the media browser of the official integration.
 3. The display plays the clip once.
-4. The clip stays on the display, within a size limit (500 MB by default). The same announcement later starts at once, without creating and uploading it again. A clip is deleted when it was not played for 90 days (configurable). If a clip is gone from the display for whatever reason, it is uploaded again.
+4. The clip stays on the display, within a size limit (500 MB by default). The same announcement later starts at once, without creating and uploading it again. Text to speech is recognized by its text, voice and options; downloaded audio by its content, so a file that changes behind the same URL is uploaded anew. A clip is deleted when it was not played for 90 days (configurable). If a clip is gone from the display for whatever reason, it is uploaded again.
 
 Announcements play one after another; a second one waits for the first to finish. Several displays can play the same announcement at the same time; see [Several displays](#several-displays-experimental) (experimental).
 

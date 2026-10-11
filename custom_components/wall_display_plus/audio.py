@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, replace
+import hashlib
 import io
 import json
 import logging
@@ -103,8 +104,8 @@ async def _async_get_audio(
                 # Not a message ID (for example a one-time stream of the
                 # voice assistant): resolve it like any media source and
                 # do not cache it.
-                return await _async_resolve_and_fetch(hass, media_id, target_entity_id, None)
-        return await _async_resolve_and_fetch(hass, media_id, target_entity_id, media_id)
+                return await _async_resolve_and_fetch(hass, media_id, target_entity_id, cache=False)
+        return await _async_resolve_and_fetch(hass, media_id, target_entity_id, cache=True)
     # Anything else must be a plain http(s) URL. It is fetched as given and
     # never signed: signing would let any user who may call play_media
     # read authenticated Home Assistant paths through the display.
@@ -115,11 +116,11 @@ async def _async_get_audio(
             translation_key="unsupported_media",
             translation_placeholders={"media_id": _without_query(media_id)},
         )
-    return await _async_fetch(hass, media_id, media_id)
+    return await _async_fetch(hass, media_id, cache=True)
 
 
 async def _async_resolve_and_fetch(
-    hass: HomeAssistant, media_id: str, target_entity_id: str | None, source: str | None
+    hass: HomeAssistant, media_id: str, target_entity_id: str | None, *, cache: bool
 ) -> Announcement:
     """Resolve a media source item and download it."""
     item = await media_source.async_resolve_media(hass, media_id, target_entity_id)
@@ -128,7 +129,7 @@ async def _async_resolve_and_fetch(
     # Media sources resolve to paths of this instance that may need a
     # signature; only these are signed.
     url = async_process_play_media_url(hass, item.url)
-    return await _async_fetch(hass, url, source)
+    return await _async_fetch(hass, url, cache=cache)
 
 
 async def _async_get_tts_audio(hass: HomeAssistant, media_id: str) -> Announcement:
@@ -155,8 +156,13 @@ async def _async_get_tts_audio(hass: HomeAssistant, media_id: str) -> Announceme
     return Announcement(source=source, extension=extension, data=data)
 
 
-async def _async_fetch(hass: HomeAssistant, url: str, source: str | None) -> Announcement:
-    """Download audio; anything that is not audio is refused."""
+async def _async_fetch(hass: HomeAssistant, url: str, *, cache: bool) -> Announcement:
+    """Download audio; anything that is not audio is refused.
+
+    A downloaded clip is cached by its content, not by its address: a file
+    that changes behind the same URL is uploaded anew. The audio is
+    downloaded for every announcement anyway; the cache saves the upload.
+    """
     session = async_get_clientsession(hass)
     try:
         async with session.get(url, timeout=FETCH_TIMEOUT) as resp:
@@ -177,6 +183,7 @@ async def _async_fetch(hass: HomeAssistant, url: str, source: str | None) -> Ann
         ) from err
     if len(data) > MAX_CLIP_BYTES:
         raise HomeAssistantError(translation_domain=DOMAIN, translation_key="clip_too_large")
+    source = f"content:{hashlib.sha256(data).hexdigest()}" if cache else None
     return Announcement(source=source, extension=_extension(url, mime_type), data=data)
 
 
