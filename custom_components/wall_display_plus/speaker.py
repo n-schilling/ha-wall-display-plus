@@ -49,8 +49,6 @@ from .const import (
 
 _LOGGER = logging.getLogger(__name__)
 
-KNOWN_EXTENSIONS = ("mp3", "wav", "ogg", "flac", "aac", "m4a")
-
 # An uncached clip is deleted this long after it finished playing.
 DELETE_GRACE = 2.0
 
@@ -83,7 +81,9 @@ def cache_key(secret: bytes, source: str) -> str:
 def clip_filename(tag: str, key: str, extension: str) -> str:
     """Return the file name a clip gets on the display (ASCII, at most 50 bytes)."""
     extension = extension.lower().lstrip(".")
-    if extension not in KNOWN_EXTENSIONS:
+    # Keep the real type (the display picks its decoder by it); only an
+    # unusable extension becomes mp3, the most common format
+    if not (extension.isascii() and extension.isalnum() and 1 <= len(extension) <= 4):
         extension = "mp3"
     name = f"{CLIP_PREFIX}{tag}_{key[:KEY_LENGTH]}.{extension}"
     if len(name.encode()) > MAX_FILENAME_BYTES:  # pragma: no cover - cannot happen
@@ -121,7 +121,10 @@ class Speaker:
         self.tag = secrets.token_hex(TAG_LENGTH // 2)
         self._lock = asyncio.Lock()
         self._busy_until = 0.0
+        # When the last clip ends (or was stopped), time.monotonic()
         self.playing_until = 0.0
+        # Uncached clips that are on the display until they were played
+        self._uncached: set[str] = set()
         # Volume (0-10) for announcements without their own volume; set by the
         # "Announcement volume" entity
         self.announcement_volume = DEFAULT_ANNOUNCEMENT_VOLUME
@@ -224,13 +227,25 @@ class Speaker:
 
         if audio.key is None:
             # Not cached: delete it once it has been played.
+            self._uncached.add(item.filename)
             self._hass.async_create_background_task(
-                self._delete_later(item.id, duration + PLAYBACK_MARGIN + DELETE_GRACE),
+                self._delete_later(item, duration + PLAYBACK_MARGIN + DELETE_GRACE),
                 f"{DOMAIN} delete uncached clip",
             )
         else:
             self._remember(audio.key, item)
         return duration
+
+    def stopped(self) -> None:
+        """The clip was stopped: the display is free and the volume goes back."""
+        now = time.monotonic()
+        self.playing_until = now
+        self._busy_until = min(self._busy_until, now)
+        if self._restore_task is not None:
+            self._restore_task.cancel()
+            self._restore_task = self._hass.async_create_background_task(
+                self._restore_volume_later(0), f"{DOMAIN} restore volume"
+            )
 
     async def discard(self, audio: ClipAudio, prepared: PreparedClip) -> None:
         """Forget a prepared clip that will not play; an uncached one is deleted."""
@@ -346,12 +361,13 @@ class Speaker:
         _LOGGER.debug("Evicted %s (%s bytes) to make room", item.filename, item.size)
         return True
 
-    async def _delete_later(self, media_id: int, delay: float) -> None:
+    async def _delete_later(self, item: MediaItem, delay: float) -> None:
         await asyncio.sleep(delay)
+        self._uncached.discard(item.filename)
         try:
-            await self._client.delete_media(media_id)
+            await self._client.delete_media(item.id)
         except WallDisplayError as err:
-            _LOGGER.debug("Could not delete clip %s: %s", media_id, err)
+            _LOGGER.debug("Could not delete clip %s: %s", item.id, err)
         else:
             self._library_changed()
 
@@ -372,6 +388,8 @@ class Speaker:
                 if parse_timestamp(entry.get("last_used")) < limit
             }
             keep = {entry["filename"] for key, entry in self._entries.items() if key not in expired}
+            # An uncached clip that is still to be played is no orphan
+            keep |= self._uncached
             deleted = 0
             for item in await self._client.list_media():
                 if owns(item.filename, self.tag) and item.filename not in keep:

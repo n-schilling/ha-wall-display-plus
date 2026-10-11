@@ -5,11 +5,13 @@ from __future__ import annotations
 import copy
 from dataclasses import dataclass, field
 import logging
+import time
 from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .api import DeviceInfo, WallDisplayAuthError, WallDisplayClient, WallDisplayError
@@ -30,6 +32,8 @@ class DisplayState:
     cpu_temperature: float | None = None
     cache_clips: int = 0
     cache_bytes: int = 0
+    # time.monotonic() when the status was read
+    fetched_at: float = 0.0
 
 
 @dataclass(slots=True)
@@ -79,8 +83,8 @@ class WallDisplayCoordinator(DataUpdateCoordinator[DisplayState]):
             motion = await self.client.get_motion_config()
             media = await self.client.get_media_status()
             ui_config = await self.client.get_ui_config()
-            cpu_temperature = await self.client.get_cpu_temperature()
             ours = [i for i in await self.client.list_media() if owns(i.filename, self.speaker.tag)]
+            cpu_temperature = await self._async_cpu_temperature()
         except WallDisplayAuthError as err:
             raise ConfigEntryAuthFailed(
                 translation_domain=DOMAIN, translation_key="invalid_auth"
@@ -100,7 +104,28 @@ class WallDisplayCoordinator(DataUpdateCoordinator[DisplayState]):
             cpu_temperature=cpu_temperature,
             cache_clips=len(ours),
             cache_bytes=sum(i.size for i in ours),
+            fetched_at=time.monotonic(),
         )
+
+    async def _async_cpu_temperature(self) -> float | None:
+        """Read the CPU temperature, only for an enabled sensor; failing is no error.
+
+        The sensor is disabled by default, and the method is missing on some
+        firmware: neither may cost a request or make the display unavailable.
+        """
+        registry = er.async_get(self.hass)
+        entity_id = registry.async_get_entity_id(
+            "sensor", DOMAIN, f"{self.config_entry.unique_id}_cpu_temperature"
+        )
+        if entity_id is None or (entry := registry.async_get(entity_id)) is None or entry.disabled:
+            return None
+        try:
+            return await self.client.get_cpu_temperature()
+        except WallDisplayAuthError:
+            raise
+        except WallDisplayError as err:
+            _LOGGER.debug("CPU temperature not available: %s", err)
+            return None
 
     async def async_set_ui(self, path: tuple[str, ...], value: Any) -> None:
         """Set one screen setting (path of at least two keys), only if it changes.

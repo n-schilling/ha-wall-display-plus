@@ -52,6 +52,8 @@ class FakeDisplay:
         self.played_at: list[float] = []
         self.upload_delay = 0.0
         self.stops = 0
+        self.list_calls = 0
+        self.cpu_calls = 0
         self.deleted: list[int] = []
         self.wake_screen = True
         self.motion_writes = 0
@@ -129,6 +131,7 @@ class FakeDisplay:
 
     async def list_media(self) -> list[MediaItem]:
         self._check_auth()
+        self.list_calls += 1
         return list(self.library.values())
 
     async def upload(self, filename: str, media_type: str, data: bytes) -> None:
@@ -188,6 +191,7 @@ class FakeDisplay:
 
     async def get_cpu_temperature(self) -> float | None:
         self._check_auth()
+        self.cpu_calls += 1
         return self.cpu_temperature
 
     async def restart_app(self) -> None:

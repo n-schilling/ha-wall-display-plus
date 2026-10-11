@@ -164,7 +164,7 @@ async def _async_fetch(hass: HomeAssistant, url: str, source: str | None) -> Ann
             mime_type = resp.content_type or ""
             if not mime_type.startswith("audio/"):
                 raise HomeAssistantError(translation_domain=DOMAIN, translation_key="not_audio")
-            if int(resp.headers.get("Content-Length") or 0) > MAX_CLIP_BYTES:
+            if _content_length(resp.headers.get("Content-Length")) > MAX_CLIP_BYTES:
                 raise HomeAssistantError(
                     translation_domain=DOMAIN, translation_key="clip_too_large"
                 )
@@ -178,6 +178,17 @@ async def _async_fetch(hass: HomeAssistant, url: str, source: str | None) -> Ann
     if len(data) > MAX_CLIP_BYTES:
         raise HomeAssistantError(translation_domain=DOMAIN, translation_key="clip_too_large")
     return Announcement(source=source, extension=_extension(url, mime_type), data=data)
+
+
+def _content_length(value: str | None) -> int:
+    """Return the announced size; a missing or broken header counts as unknown (0).
+
+    The download is limited to MAX_CLIP_BYTES + 1 anyway.
+    """
+    try:
+        return int(value or 0)
+    except ValueError:
+        return 0
 
 
 def _extension(url: str, mime_type: str) -> str:

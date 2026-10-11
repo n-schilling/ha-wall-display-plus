@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, patch
 from urllib.parse import quote_plus
 
 import pytest
-from pytest_homeassistant_custom_component.common import MockConfigEntry, async_fire_time_changed
+from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from homeassistant.components.media_player import (
     ATTR_MEDIA_CONTENT_ID,
@@ -153,18 +153,6 @@ async def test_expired_and_orphaned_clips_are_deleted(
     assert {"digital_alarm.mp3", "song.mp3"} <= names  # foreign files untouched
     assert len(display.clips()) == 1
     assert old_key not in speaker.entries
-
-
-async def test_cleanup_runs_after_clip_ended(
-    hass: HomeAssistant, display: FakeDisplay, setup_entry: MockConfigEntry, tts_audio
-) -> None:
-    """After a clip, orphans are cleaned up without waiting for the daily run."""
-    await display.upload(own_file(setup_entry, "orphan.mp3"), "ALERT", b"x")
-    await _play(hass, TTS_HELLO)
-    async_fire_time_changed(hass, dt_util.utcnow() + timedelta(seconds=5))
-    await hass.async_block_till_done()
-    assert display.by_name(own_file(setup_entry, "orphan.mp3")) is None
-    assert len(display.clips()) == 1
 
 
 async def test_play_url(

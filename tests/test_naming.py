@@ -20,7 +20,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
 
 from custom_components.wall_display_plus.const import MAX_FILENAME_BYTES
-from custom_components.wall_display_plus.speaker import KNOWN_EXTENSIONS, clip_filename, owns
+from custom_components.wall_display_plus.speaker import clip_filename, owns
 
 from .conftest import MAC, FakeDisplay
 
@@ -59,9 +59,10 @@ async def _play(hass: HomeAssistant) -> None:
 
 def test_longest_name_is_far_below_the_limit() -> None:
     """The longest possible name stays far below the 250 bytes the firmware stores."""
-    longest = max(len(clip_filename("abcdef", "f" * 64, ext).encode()) for ext in KNOWN_EXTENSIONS)
-    assert longest <= 50 < MAX_FILENAME_BYTES
-    assert clip_filename("abcdef", "f" * 64, "mp3").isascii()
+    extensions = ["mp3", "opus", "webm", "toolong", "ünï", "a/b", ""]
+    names = [clip_filename("abcdef", "f" * 64, ext) for ext in extensions]
+    assert max(len(name.encode()) for name in names) <= 50 < MAX_FILENAME_BYTES
+    assert all(name.isascii() for name in names)
 
 
 def test_owns() -> None:

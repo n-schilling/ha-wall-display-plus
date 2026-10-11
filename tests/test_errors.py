@@ -407,16 +407,6 @@ async def test_uncached_delete_failure_is_ignored(
     await hass.async_block_till_done(wait_background_tasks=True)
 
 
-async def test_cleanup_after_clip_survives_errors(
-    hass: HomeAssistant, display: FakeDisplay, setup_entry: MockConfigEntry, tts_audio
-) -> None:
-    """The cleanup after a clip may fail without consequences."""
-    await _play(hass, TTS)
-    _fail(display, "list_media", WallDisplayError("down"))
-    async_fire_time_changed(hass, dt_util.utcnow() + timedelta(seconds=5))
-    await hass.async_block_till_done()
-
-
 async def test_cleanup_skips_files_that_vanished(
     hass: HomeAssistant, display: FakeDisplay, setup_entry: MockConfigEntry
 ) -> None:
@@ -426,10 +416,12 @@ async def test_cleanup_skips_files_that_vanished(
     assert await setup_entry.runtime_data.speaker.async_cleanup() == 0
 
 
-def test_unknown_extension_becomes_mp3() -> None:
-    """Unknown file types are stored as .mp3."""
-    assert clip_filename("abc123", "a" * 64, "xyz").endswith(".mp3")
+def test_extension_is_kept_unless_unusable() -> None:
+    """The real type is kept (the display picks its decoder by it); unusable ones become mp3."""
+    assert clip_filename("abc123", "a" * 64, "opus").endswith(".opus")
     assert clip_filename("abc123", "a" * 64, ".WAV").endswith(".wav")
+    for unusable in ("", "toolong", "ünï", "a/b"):
+        assert clip_filename("abc123", "a" * 64, unusable).endswith(".mp3")
 
 
 async def test_browse_media(

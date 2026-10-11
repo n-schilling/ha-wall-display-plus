@@ -6,6 +6,15 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 
 ### Fixed
 
+- Stopping a clip frees the display at once: the next announcement no longer waits for the rest of the stopped clip, and the volume goes back right away.
+- The cleanup never deletes an uncached clip (`cache: false`, voice assistant streams) that is still to be played.
+- The speaker no longer stays *playing* for up to 10 minutes when a poll happened to read the status while its own clip played.
+- A firmware without the CPU temperature, or a failure reading it, no longer makes the display unavailable; the temperature is only read while its sensor is enabled.
+- No full cleanup after every clip any more (one request less for the display per announcement); expired and orphaned clips go in the daily cleanup.
+- Clips keep their real file type (for example `.opus`) instead of being renamed to `.mp3`; only unusable extensions become `.mp3`.
+- A broken `Content-Length` header no longer breaks a download.
+- The test button falls back to Home Assistant's language when the engine has no fitting and no default language.
+- An upload keeps the encoded audio in memory only once.
 - "Reconfigure" on a speaker group failed with an error; it now points to **Configure**, where the group's speakers are changed.
 - README: troubleshooting for the announcement volume, the model check and groups; removal of speaker groups.
 

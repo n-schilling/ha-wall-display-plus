@@ -63,7 +63,7 @@ def _engine_language(hass: HomeAssistant, engine: str, wanted: str) -> str:
         return wanted
     if found := language_util.matches(wanted, supported, hass.config.country):
         return found[0]
-    return str(instance.default_language)
+    return str(instance.default_language) if instance.default_language else wanted
 
 
 def _assistant_voice(hass: HomeAssistant) -> tuple[str, str, dict[str, Any] | None] | None:

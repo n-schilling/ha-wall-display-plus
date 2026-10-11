@@ -173,19 +173,17 @@ class WallDisplayClient:
     async def upload(self, filename: str, media_type: str, data: bytes) -> None:
         """Upload a file in chunks, the way the display's web interface does."""
         encoded = base64.b64encode(data).decode()
-        chunks = [
-            encoded[start : start + UPLOAD_CHUNK_SIZE]
-            for start in range(0, len(encoded), UPLOAD_CHUNK_SIZE)
-        ] or [""]
-        for index, chunk in enumerate(chunks):
+        # Each chunk is cut when it is sent, so the encoded data exists once
+        count = max(1, -(-len(encoded) // UPLOAD_CHUNK_SIZE))
+        for index in range(count):
             await self.rpc(
                 "Media.PutMedia",
                 {
                     "filename": filename,
                     "type": media_type,
-                    "data": chunk,
+                    "data": encoded[index * UPLOAD_CHUNK_SIZE : (index + 1) * UPLOAD_CHUNK_SIZE],
                     "append": index > 0,
-                    "last": index == len(chunks) - 1,
+                    "last": index == count - 1,
                 },
                 client_timeout=UPLOAD_TIMEOUT,
             )

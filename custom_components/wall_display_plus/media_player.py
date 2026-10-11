@@ -117,8 +117,14 @@ class WallDisplaySpeaker(WallDisplayEntity, MediaPlayerEntity):
         """Return playing while an alert clip plays."""
         if time.monotonic() < self.speaker.playing_until:
             return MediaPlayerState.PLAYING
-        playback = self.coordinator.data.media_status.get("playback") or {}
-        if playback.get("enable") and playback.get("media_type") == MEDIA_TYPE_ALERT:
+        data = self.coordinator.data
+        playback = data.media_status.get("playback") or {}
+        if (
+            playback.get("enable")
+            and playback.get("media_type") == MEDIA_TYPE_ALERT
+            # A status read before our last clip ended may still show that clip
+            and data.fetched_at > self.speaker.playing_until
+        ):
             return MediaPlayerState.PLAYING
         return MediaPlayerState.IDLE
 
@@ -168,7 +174,7 @@ class WallDisplaySpeaker(WallDisplayEntity, MediaPlayerEntity):
         self.async_write_ha_state()
         if self._end_listener:
             self._end_listener()
-        self._end_listener = async_call_later(self.hass, duration + 1, self._async_clip_ended)
+        self._end_listener = async_call_later(self.hass, duration + 1, self._clip_ended)
 
     def play_error(self, err: Exception) -> Exception:
         """Turn an error of the display into the one the action call raises."""
@@ -246,13 +252,11 @@ class WallDisplaySpeaker(WallDisplayEntity, MediaPlayerEntity):
             self._end_listener = None
         await super().async_will_remove_from_hass()
 
-    async def _async_clip_ended(self, _now: Any) -> None:
+    @callback
+    def _clip_ended(self, _now: Any) -> None:
+        # Expired and orphaned clips are deleted by the daily cleanup
         self._end_listener = None
         self.async_write_ha_state()
-        try:
-            await self.speaker.async_cleanup()
-        except WallDisplayError as err:
-            _LOGGER.debug("Clip cleanup skipped: %s", err)
 
     async def async_media_stop(self) -> None:
         """Stop the clip that is playing."""
@@ -264,7 +268,7 @@ class WallDisplaySpeaker(WallDisplayEntity, MediaPlayerEntity):
                 translation_key="stop_failed",
                 translation_placeholders={"error": str(err)},
             ) from err
-        self.speaker.playing_until = 0
+        self.speaker.stopped()
         self.async_write_ha_state()
 
     async def async_browse_media(
