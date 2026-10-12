@@ -202,8 +202,12 @@ class Speaker:
         prepared = await self._ensure_on_display(audio)
         if audio.key is not None:
             self._remember(audio.key, prepared.item)
-        await self._set_volume_for_clip(self.announcement_volume if volume is None else volume)
+        await self._set_volume_for_clip(self.clip_volume(volume))
         return prepared
+
+    def clip_volume(self, volume: int | None) -> int:
+        """Return the volume (0-10) a clip plays at: its own or the announcement volume."""
+        return self.announcement_volume if volume is None else volume
 
     async def start(self, audio: ClipAudio, prepared: PreparedClip) -> float:
         """Play a prepared clip; return its duration in seconds.

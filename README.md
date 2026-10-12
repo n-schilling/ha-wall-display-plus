@@ -93,7 +93,7 @@ Since Home Assistant 2026.10 a device belongs to a single integration, so the en
 | Speaker group (`media_player`, experimental) | Plays on all its member speakers at the same time; see [Several displays](#several-displays-experimental). Attribute `entity_id` lists the members. |
 | Motion wakes screen (`switch`, configuration) | Whether motion in front of the display wakes the screen. Touch always does. |
 | Dim screen when idle, Turn screen off when idle, Screen saver (`switch`, configuration) | The display's own screen settings. |
-| Announcement volume (`number`, configuration) | Volume of announcements that bring no volume of their own, 70 % by default, in steps of 10 %. Applies to `tts.speak` as well. The display goes back to its previous volume after each announcement, so music keeps its own volume. Can be changed from automations, for example quieter in the evening. |
+| Announcement volume (`number`, configuration) | Volume of announcements that bring no volume of their own, 70 % by default, in steps of 10 %. Applies to `tts.speak` as well. The display goes back to its previous volume after each announcement, so music keeps its own volume. Can be changed from automations, for example quieter at night; see [Night mode](#night-mode). At 0 % such announcements are skipped: no text to speech, no upload, and the next announcement does not wait. |
 | Minimum brightness, Dim after, Screen off after, Screen saver after (`number`, configuration) | Minimum brightness in %, timeouts 10–3600 s. |
 | Test announcement volume (`button`, configuration) | Speaks a short test sentence ("This is a test of the announcement volume.", in German for a German Home Assistant) at the announcement volume. It uses the text-to-speech of the preferred voice assistant, otherwise Home Assistant's default engine. |
 | Clear speaker cache (`button`, configuration) | Deletes every clip this integration put on the display and creates a new secret for the file names. |
@@ -103,7 +103,7 @@ Since Home Assistant 2026.10 a device belongs to a single integration, so the en
 
 Manual brightness and automatic brightness are left out on purpose: while automatic brightness is on, the display reports its current brightness (0 while the screen is off) as the manual level, so turning the automatic off could leave the screen black.
 
-`media_player.play_media` accepts `extra: {cache: false}` to play a clip without keeping it, and `extra: {volume: 0.8}` (0–1, like `volume_set`) to play one announcement at its own volume instead of the announcement volume; the display goes back to its previous volume afterwards.
+`media_player.play_media` accepts `extra: {cache: false}` to play a clip without keeping it, and `extra: {volume: 0.8}` (0–1, like `volume_set`) to play one announcement at its own volume instead of the announcement volume; the display goes back to its previous volume afterwards. At `volume: 0` the announcement is skipped.
 
 ## Several displays (experimental)
 
@@ -206,17 +206,47 @@ data:
   media_content_id: https://example.com/doorbell.mp3
 ```
 
-No motion wake-up at night:
+### Night mode
+
+There is no separate night mode: an automation sets the announcement volume and the motion switch. From 22:00 announcements are quieter (`0` skips them altogether) and motion does not wake the screen; at 7:00 both go back. Announcements with their own volume, such as the alarm above, are not affected.
 
 ```yaml
 triggers:
   - trigger: time
     at: "22:00:00"
+    id: night
+  - trigger: time
+    at: "07:00:00"
+    id: day
 actions:
-  - action: switch.turn_off
-    target:
-      entity_id: switch.living_room_wall_display_motion_wakes_screen
+  - choose:
+      - conditions:
+          - condition: trigger
+            id: night
+        sequence:
+          - action: number.set_value
+            target:
+              entity_id: number.living_room_wall_display_announcement_volume
+            data:
+              value: 20
+          - action: switch.turn_off
+            target:
+              entity_id: switch.living_room_wall_display_motion_wakes_screen
+      - conditions:
+          - condition: trigger
+            id: day
+        sequence:
+          - action: number.set_value
+            target:
+              entity_id: number.living_room_wall_display_announcement_volume
+            data:
+              value: 70
+          - action: switch.turn_on
+            target:
+              entity_id: switch.living_room_wall_display_motion_wakes_screen
 ```
+
+With several displays, a display at 0 % is left out and the others play.
 
 ## Use cases
 
@@ -224,7 +254,7 @@ actions:
 - Reminders and warnings where people are: window open while it rains, door left open, high CO₂.
 - Doorbell or alarm sounds on the display in the living room.
 - Voice assistant answers on the display.
-- A dark display in the evening: motion does not wake it, touch still does.
+- Quiet nights: announcements quieter or off, alarms still loud; motion does not wake the screen, touch still does.
 
 ## Known limitations
 
@@ -253,7 +283,7 @@ actions:
 
 | Problem | What to do |
 |---|---|
-| Nothing to hear | Press **Test announcement volume**. If it is too quiet, raise **Announcement volume**; also check that no Bluetooth speaker is connected to the display instead. |
+| Nothing to hear | Press **Test announcement volume**. If it is too quiet, raise **Announcement volume** (at 0 % nothing plays; check a night-mode automation); also check that no Bluetooth speaker is connected to the display instead. |
 | "This device is not a Wall Display XL" | Only the Wall Display XL (SAWD-3A1XE10EU2) is supported; see [Supported devices](#supported-devices). |
 | "Reconfigure" on a speaker group | A group has no connection settings; change its speakers with **Configure**. |
 | Repair issue "the firmware does not support the speaker" | The firmware changed the interface. [Open an issue](https://github.com/n-schilling/ha-wall-display-plus/issues/new/choose) with model and firmware. The issue disappears once a clip plays again. |

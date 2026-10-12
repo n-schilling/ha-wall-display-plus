@@ -270,6 +270,39 @@ async def test_announcement_volume(
     assert display.volume_writes[-2:] == [9, 3]
 
 
+async def test_volume_zero_plays_nothing(
+    hass: HomeAssistant, display: FakeDisplay, setup_entry: MockConfigEntry, tts_audio
+) -> None:
+    """At 0 % nothing runs: no text to speech, no upload, no volume change.
+
+    An announcement with its own volume (an alarm) still plays.
+    """
+    await hass.services.async_call(
+        NUMBER_DOMAIN,
+        SERVICE_SET_VALUE,
+        {ATTR_ENTITY_ID: _eid(hass, NUMBER_DOMAIN, "announcement_volume"), ATTR_VALUE: 0},
+        blocking=True,
+    )
+    await _play(hass)
+    assert tts_audio.call_count == 0
+    assert display.uploads == []
+    assert display.played == []
+    assert display.volume_writes == []
+
+    await _play(hass, {"volume": 1.0})
+    assert len(display.played) == 1
+    assert display.volume_writes == [10]
+
+
+async def test_own_volume_zero_plays_nothing(
+    hass: HomeAssistant, display: FakeDisplay, setup_entry: MockConfigEntry, tts_audio
+) -> None:
+    """extra.volume 0 skips the announcement even at a normal announcement volume."""
+    await _play(hass, {"volume": 0})
+    assert tts_audio.call_count == 0
+    assert display.played == []
+
+
 async def test_announcement_volume_survives_restart(
     hass: HomeAssistant, display: FakeDisplay, config_entry: MockConfigEntry, tts_audio
 ) -> None:

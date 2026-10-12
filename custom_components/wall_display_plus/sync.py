@@ -12,6 +12,10 @@ for the same media with the same extra form a session:
    display waits at most SYNC_TIMEOUT for the others; a display that is not
    ready by then does not play and its call fails.
 
+A display whose clip would play at volume 0 is left out: nothing is uploaded
+and it does not wait for its turn. If every display is left out, the audio is
+not even fetched (no text to speech at night with the volume at 0).
+
 Sessions with several displays that share a display run one after another,
 so two sessions never wait for each other's displays; sessions on different
 displays run at the same time.
@@ -24,6 +28,7 @@ from collections.abc import Sequence
 import copy
 from dataclasses import dataclass, field
 import json
+import logging
 import time
 from typing import Any, Protocol
 
@@ -34,6 +39,8 @@ from homeassistant.util.hass_dict import HassKey
 from .audio import Announcement, async_get_announcement
 from .const import DOMAIN
 from .speaker import ClipAudio, Speaker
+
+_LOGGER = logging.getLogger(__name__)
 
 # Seconds the first ready display waits for the others.
 SYNC_TIMEOUT = 10.0
@@ -108,10 +115,17 @@ class SyncManager:
         """Play on the members, together with the other calls of the action.
 
         A single member raises its own error. Several members (a speaker
-        group) raise if any of them failed.
+        group) raise if any of them failed. Members that would play at
+        volume 0 are skipped.
         """
         for member in members:
             member.check_request(media_id)
+        silent = [m.entity_id for m in members if m.speaker.clip_volume(volume) == 0]
+        if silent:
+            _LOGGER.debug("Not played at volume 0: %s", ", ".join(silent))
+            members = [m for m in members if m.entity_id not in silent]
+            if not members:
+                return
         session = self._join(context, media_id, extra, volume, members)
         results = await asyncio.gather(
             *(session.results[m.entity_id] for m in members), return_exceptions=True

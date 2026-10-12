@@ -174,6 +174,23 @@ async def test_speakers_of_one_call_play_together(
     assert min(d.played_at[-1] for d in displays) - started >= 0.3
 
 
+async def test_display_at_volume_zero_is_left_out(
+    hass: HomeAssistant, displays: list[FakeDisplay], entries: list[MockConfigEntry], tts_audio
+) -> None:
+    """A display at 0 % does not play and does not hold up the others."""
+    entries[1].runtime_data.speaker.announcement_volume = 0
+    displays[1].upload_delay = 5  # would make the others wait if it took part
+    await _play(hass, _speakers(hass))
+    assert tts_audio.call_count == 1
+    assert [len(d.played) for d in displays] == [1, 0, 1]
+    assert displays[1].uploads == []
+
+    for entry in entries:
+        entry.runtime_data.speaker.announcement_volume = 0
+    await _play(hass, _speakers(hass))
+    assert tts_audio.call_count == 1  # nobody to play for: no text to speech
+
+
 async def test_each_display_keeps_its_own_cache_key(
     hass: HomeAssistant, displays: list[FakeDisplay], entries: list[MockConfigEntry], tts_audio
 ) -> None:
