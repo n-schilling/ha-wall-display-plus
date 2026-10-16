@@ -2,6 +2,12 @@
 
 All notable changes are listed here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versions follow [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Fixed
+
+- The Release workflow can no longer be started by hand from a branch other than `main`; a manual run from `dev` would have tagged and published untested code.
+
 ## [0.1.7] - 2026-10-12
 
 ### Changed
