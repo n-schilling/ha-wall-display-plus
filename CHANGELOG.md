@@ -4,6 +4,8 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 
 ## [Unreleased]
 
+## [0.1.8] - 2026-10-27
+
 ### Fixed
 
 - A display that briefly does not answer no longer becomes unavailable for 10 minutes. Firmware 2.8.4 sometimes leaves a single request unanswered for half a minute; every such hiccup made all entities unavailable until the next poll, and switching them in that time did nothing (for example *Motion wakes screen* from an automation).
