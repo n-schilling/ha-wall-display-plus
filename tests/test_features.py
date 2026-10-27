@@ -38,7 +38,7 @@ from homeassistant.helpers import entity_registry as er
 from homeassistant.util import dt as dt_util
 
 from custom_components.wall_display_plus.api import WallDisplayError
-from custom_components.wall_display_plus.const import UPDATE_INTERVAL
+from custom_components.wall_display_plus.const import RETRY_INTERVAL, UPDATE_INTERVAL
 
 from .conftest import MAC, FakeDisplay
 
@@ -562,9 +562,10 @@ async def test_cache_hit_does_not_poll(
 async def test_failed_announcement_refreshes_at_once(
     hass: HomeAssistant, display: FakeDisplay, setup_entry: MockConfigEntry, tts_audio
 ) -> None:
-    """When the display is gone, the entities say so without waiting for the poll."""
+    """A failed announcement polls at once; that poll counts as the first failed one."""
     display.reachable = False
     with pytest.raises(HomeAssistantError):
         await _play(hass)
     await hass.async_block_till_done()
-    assert hass.states.get(_eid(hass, SWITCH_DOMAIN, "dim_screen")).state == "unavailable"
+    assert setup_entry.runtime_data.coordinator.update_interval == RETRY_INTERVAL
+    assert hass.states.get(_eid(hass, SWITCH_DOMAIN, "dim_screen")).state == "on"

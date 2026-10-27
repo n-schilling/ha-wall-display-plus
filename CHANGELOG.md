@@ -6,6 +6,11 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 
 ### Fixed
 
+- A display that briefly does not answer no longer becomes unavailable for 10 minutes. Firmware 2.8.4 sometimes leaves a single request unanswered for half a minute; every such hiccup made all entities unavailable until the next poll, and switching them in that time did nothing (for example *Motion wakes screen* from an automation).
+  - A request that only reads is sent once more after a second. Writes are never repeated.
+  - A failed poll keeps the last values and is repeated after a minute. The entities only become unavailable after three failed polls in a row, and are then polled every minute until the display answers.
+  - The timeout per request is 15 instead of 20 seconds.
+- An error message after a timeout names the timeout instead of ending empty ("Motion.GetConfig failed: TimeoutError").
 - The Release workflow can no longer be started by hand from a branch other than `main`; a manual run from `dev` would have tagged and published untested code.
 
 ## [0.1.7] - 2026-10-12

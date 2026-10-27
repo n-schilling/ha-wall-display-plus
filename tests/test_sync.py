@@ -42,6 +42,7 @@ from custom_components.wall_display_plus.const import (
     CONF_TYPE,
     DOMAIN,
     TYPE_GROUP,
+    UNAVAILABLE_AFTER_FAILURES,
     UPDATE_INTERVAL,
 )
 from custom_components.wall_display_plus.diagnostics import async_get_config_entry_diagnostics
@@ -366,6 +367,13 @@ async def _create_group(
     return result["result"]
 
 
+async def _fail_polls(hass: HomeAssistant, start: int = 1) -> None:
+    """Let enough polls pass that unreachable displays become unavailable."""
+    for step in range(start, start + UNAVAILABLE_AFTER_FAILURES):
+        async_fire_time_changed(hass, dt_util.utcnow() + step * UPDATE_INTERVAL)
+        await hass.async_block_till_done()
+
+
 def _group_id(hass: HomeAssistant, entry: MockConfigEntry) -> str:
     entity_id = er.async_get(hass).async_get_entity_id(MP_DOMAIN, DOMAIN, entry.entry_id)
     assert entity_id
@@ -494,16 +502,14 @@ async def test_group_follows_member_availability(
     entry = await _create_group(hass, speakers[:2])
     group = _group_id(hass, entry)
     displays[0].reachable = False
-    async_fire_time_changed(hass, dt_util.utcnow() + UPDATE_INTERVAL)
-    await hass.async_block_till_done()
+    await _fail_polls(hass)
     assert hass.states.get(speakers[0]).state == STATE_UNAVAILABLE
 
     await _play(hass, [group])
     assert not displays[0].played and displays[1].played
 
     displays[1].reachable = False
-    async_fire_time_changed(hass, dt_util.utcnow() + 2 * UPDATE_INTERVAL)
-    await hass.async_block_till_done()
+    await _fail_polls(hass, start=UNAVAILABLE_AFTER_FAILURES + 1)
     assert hass.states.get(group).state == STATE_UNAVAILABLE
 
 
@@ -546,8 +552,7 @@ async def test_group_stop_without_members(
     entity = hass.data["entity_components"][MP_DOMAIN].get_entity(_group_id(hass, entry))
     for display in displays[:2]:
         display.reachable = False
-    async_fire_time_changed(hass, dt_util.utcnow() + UPDATE_INTERVAL)
-    await hass.async_block_till_done()
+    await _fail_polls(hass)
     await entity.async_media_stop()
     assert [d.stops for d in displays] == [0, 0, 0]
 

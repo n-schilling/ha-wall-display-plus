@@ -10,15 +10,26 @@ from __future__ import annotations
 
 import asyncio
 import base64
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
+import logging
 from typing import Any
 
 from aiohttp import ClientError, ClientSession, ClientTimeout, DigestAuthMiddleware
 
 from .const import AUTH_USER, SUPPORTED_MODELS, UPLOAD_CHUNK_SIZE
 
-TIMEOUT = ClientTimeout(total=20)
+_LOGGER = logging.getLogger(__name__)
+
+TIMEOUT = ClientTimeout(total=15)
 UPLOAD_TIMEOUT = ClientTimeout(total=60)
+
+# Firmware 2.8.4 sometimes leaves a single request unanswered for half a minute
+# while the next one is answered at once. A request that only reads is sent once
+# more after a short pause; a write is not, a repeated upload chunk or alert
+# would do harm.
+READ_ATTEMPTS = 2
+RETRY_PAUSE = 1.0
 
 # Firmware 2.8.2 answers an unknown method with -114 "Method not found!";
 # 404 is the code of the general Gen2 RPC protocol.
@@ -97,11 +108,9 @@ class WallDisplayClient:
     async def get_device_info(self) -> DeviceInfo:
         """Read the unauthenticated device information."""
         try:
-            async with self._session.get(f"{self._base}/shelly", timeout=TIMEOUT) as resp:
-                resp.raise_for_status()
-                data = await resp.json(content_type=None)
+            data = await _retrying(self._get_shelly, READ_ATTEMPTS)
         except (ClientError, TimeoutError, ValueError) as err:
-            raise WallDisplayError(f"Cannot read device information: {err}") from err
+            raise WallDisplayError(f"Cannot read device information: {_describe(err)}") from err
         return DeviceInfo(
             mac=str(data.get("mac", "")).lower(),
             model=str(data.get("model", "")),
@@ -120,7 +129,11 @@ class WallDisplayClient:
         params: dict[str, Any] | None = None,
         client_timeout: ClientTimeout = TIMEOUT,
     ) -> dict[str, Any]:
-        """Call one RPC method and return its result."""
+        """Call one RPC method and return its result.
+
+        A method that only reads is sent once more when the display does not
+        answer (see READ_ATTEMPTS).
+        """
         self._id += 1
         frame = {
             "id": self._id,
@@ -128,21 +141,13 @@ class WallDisplayClient:
             "method": method,
             "params": params or {},
         }
+        attempts = READ_ATTEMPTS if _reads(method) else 1
         try:
-            async with self._session.post(
-                f"{self._base}/rpc",
-                json=frame,
-                timeout=client_timeout,
-                middlewares=self._middlewares,
-            ) as resp:
-                if resp.status == 401:
-                    raise WallDisplayAuthError("The display rejected the password")
-                resp.raise_for_status()
-                answer = await resp.json(content_type=None)
+            answer = await _retrying(lambda: self._post(frame, client_timeout), attempts)
         except WallDisplayError:
             raise
         except (ClientError, TimeoutError, ValueError) as err:
-            raise WallDisplayError(f"{method} failed: {err}") from err
+            raise WallDisplayError(f"{method} failed: {_describe(err)}") from err
         if not isinstance(answer, dict):
             raise WallDisplayError(f"{method}: unexpected answer {answer!r}")
         if "error" in answer:
@@ -155,6 +160,23 @@ class WallDisplayClient:
             raise WallDisplayError(f"{method}: {error}")
         result = answer.get("result", {})
         return result if isinstance(result, dict) else {}
+
+    async def _get_shelly(self) -> Any:
+        async with self._session.get(f"{self._base}/shelly", timeout=TIMEOUT) as resp:
+            resp.raise_for_status()
+            return await resp.json(content_type=None)
+
+    async def _post(self, frame: dict[str, Any], client_timeout: ClientTimeout) -> Any:
+        async with self._session.post(
+            f"{self._base}/rpc",
+            json=frame,
+            timeout=client_timeout,
+            middlewares=self._middlewares,
+        ) as resp:
+            if resp.status == 401:
+                raise WallDisplayAuthError("The display rejected the password")
+            resp.raise_for_status()
+            return await resp.json(content_type=None)
 
     async def list_media(self) -> list[MediaItem]:
         """Return all files in the media library."""
@@ -259,6 +281,27 @@ class WallDisplayClient:
         call this when the value really changes.
         """
         await self.rpc("Motion.SetConfig", {"id": 0, "config": {"wake_screen": enabled}})
+
+
+async def _retrying[T](request: Callable[[], Awaitable[T]], attempts: int) -> T:
+    """Run a request; if the display does not answer, again after a pause."""
+    for _ in range(attempts - 1):
+        try:
+            return await request()
+        except (ClientError, TimeoutError) as err:
+            _LOGGER.debug("No answer from the display, asking once more: %s", _describe(err))
+        await asyncio.sleep(RETRY_PAUSE)
+    return await request()
+
+
+def _reads(method: str) -> bool:
+    """Return whether an RPC method only reads (Media.List, Ui.GetConfig, ...)."""
+    return method.rpartition(".")[2].startswith(("Get", "List"))
+
+
+def _describe(err: Exception) -> str:
+    """Return the error text; a timeout has none of its own."""
+    return str(err) or type(err).__name__
 
 
 def _int_or_none(value: Any) -> int | None:

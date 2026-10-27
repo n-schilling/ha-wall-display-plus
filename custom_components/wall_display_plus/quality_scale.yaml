@@ -10,7 +10,8 @@ rules:
     status: done
     comment: >-
       Every 10 minutes (weak device); own actions, library changes and failed
-      announcements refresh at once; update_entity for more.
+      announcements refresh at once; update_entity for more. A failed poll is
+      repeated after a minute, unavailable only after three in a row.
   brands:
     status: done
     comment: Brand images ship in brand/ (served locally since Home Assistant 2026.x).

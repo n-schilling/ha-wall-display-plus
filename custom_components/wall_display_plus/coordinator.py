@@ -14,7 +14,14 @@ from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .api import DeviceInfo, WallDisplayAuthError, WallDisplayClient, WallDisplayError
-from .const import CONF_TYPE, DOMAIN, TYPE_GROUP, UPDATE_INTERVAL
+from .const import (
+    CONF_TYPE,
+    DOMAIN,
+    RETRY_INTERVAL,
+    TYPE_GROUP,
+    UNAVAILABLE_AFTER_FAILURES,
+    UPDATE_INTERVAL,
+)
 from .speaker import Speaker, owns
 
 _LOGGER = logging.getLogger(__name__)
@@ -52,7 +59,11 @@ def is_group(entry: ConfigEntry[Any]) -> bool:
 
 
 class WallDisplayCoordinator(DataUpdateCoordinator[DisplayState]):
-    """Read the display's status and settings every 10 minutes."""
+    """Read the display's status and settings every 10 minutes.
+
+    A single failed poll keeps the last values and is repeated after a minute;
+    only several failed polls in a row make the entities unavailable.
+    """
 
     config_entry: WallDisplayConfigEntry
 
@@ -73,8 +84,27 @@ class WallDisplayCoordinator(DataUpdateCoordinator[DisplayState]):
         )
         self.client = client
         self.speaker = speaker
+        self._failures = 0
 
     async def _async_update_data(self) -> DisplayState:
+        try:
+            state = await self._async_read()
+        except WallDisplayError as err:
+            self._failures += 1
+            self.update_interval = RETRY_INTERVAL
+            if self.data is None or self._failures >= UNAVAILABLE_AFTER_FAILURES:
+                raise UpdateFailed(
+                    translation_domain=DOMAIN,
+                    translation_key="update_failed",
+                    translation_placeholders={"error": str(err)},
+                ) from err
+            _LOGGER.debug("Poll %s failed, keeping the last values: %s", self._failures, err)
+            return self.data
+        self._failures = 0
+        self.update_interval = UPDATE_INTERVAL
+        return state
+
+    async def _async_read(self) -> DisplayState:
         try:
             device = await self.client.get_device_info()
             motion = await self.client.get_motion_config()
@@ -85,12 +115,6 @@ class WallDisplayCoordinator(DataUpdateCoordinator[DisplayState]):
         except WallDisplayAuthError as err:
             raise ConfigEntryAuthFailed(
                 translation_domain=DOMAIN, translation_key="invalid_auth"
-            ) from err
-        except WallDisplayError as err:
-            raise UpdateFailed(
-                translation_domain=DOMAIN,
-                translation_key="update_failed",
-                translation_placeholders={"error": str(err)},
             ) from err
         wake = motion.get("wake_screen")
         return DisplayState(

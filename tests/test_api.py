@@ -2,14 +2,15 @@
 
 from __future__ import annotations
 
+import asyncio
 import base64
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Generator
 import hashlib
 import secrets
 from typing import Any
 from unittest.mock import patch
 
-from aiohttp import ClientSession, web
+from aiohttp import ClientSession, ClientTimeout, web
 from aiohttp.test_utils import TestServer
 import pytest
 
@@ -43,6 +44,8 @@ class DisplayServer:
             "fs_free": 23992492032,
         }
         self.list_delays = 0
+        # The next requests (RPC or /shelly) fail with this HTTP status or hang
+        self.failures: list[int | str] = []
         self.nonce = secrets.token_hex(8)
 
     def _authorized(self, request: web.Request) -> bool:
@@ -61,7 +64,18 @@ class DisplayServer:
         )
         return fields.get("response") == expected
 
+    async def _fail(self) -> web.Response | None:
+        if not self.failures:
+            return None
+        failure = self.failures.pop(0)
+        if failure == "hang":
+            await asyncio.sleep(1)
+            return web.Response(status=500)
+        return web.Response(status=int(failure))
+
     async def shelly_handler(self, request: web.Request) -> web.Response:
+        if (failed := await self._fail()) is not None:
+            return failed
         if self.shelly == "broken":
             return web.Response(text="not json", content_type="text/plain")
         if self.shelly == "error":
@@ -81,6 +95,8 @@ class DisplayServer:
             )
         frame = await request.json()
         self.calls.append(frame)
+        if (failed := await self._fail()) is not None:
+            return failed
         method = frame["method"]
         if method == "Media.List" and self.list_delays:
             self.list_delays -= 1
@@ -102,6 +118,13 @@ async def server(socket_enabled: None) -> AsyncGenerator[tuple[DisplayServer, st
     await test_server.start_server()
     yield twin, f"127.0.0.1:{test_server.port}"
     await test_server.close()
+
+
+@pytest.fixture(autouse=True)
+def no_retry_pause() -> Generator[None]:
+    """Retry without the pause between attempts."""
+    with patch("custom_components.wall_display_plus.api.RETRY_PAUSE", 0):
+        yield
 
 
 @pytest.fixture
@@ -281,3 +304,47 @@ async def test_screen_volume_restart_temperature(server, session) -> None:
     assert ("Ui.SetConfig", {"config": {"brightness": {"auto": False}}}) in methods
     assert ("Media.SetVolume", {"volume": 8}) in methods
     assert ("Sys.RestartApplication", {}) in methods
+
+
+async def test_read_is_asked_once_more(server, session) -> None:
+    """A read that gets no answer is sent a second time and succeeds."""
+    twin, host = server
+    twin.answers["Media.GetStatus"] = {"result": {"volume": 7}}
+    twin.failures = [500]
+    assert await WallDisplayClient(session, host, None).rpc("Media.GetStatus") == {"volume": 7}
+    assert [c["method"] for c in twin.calls] == ["Media.GetStatus", "Media.GetStatus"]
+
+
+async def test_read_hanging_is_asked_once_more(server, session) -> None:
+    """A read that hangs past the timeout is sent a second time."""
+    twin, host = server
+    twin.failures = ["hang"]
+    client = WallDisplayClient(session, host, None)
+    assert await client.rpc("Ui.GetConfig", client_timeout=ClientTimeout(total=0.2)) == {}
+    assert len(twin.calls) == 2
+
+
+async def test_read_gives_up_after_two_attempts(server, session) -> None:
+    """Two unanswered attempts fail, and a timeout names itself in the error."""
+    twin, host = server
+    twin.failures = ["hang", "hang"]
+    client = WallDisplayClient(session, host, None)
+    with pytest.raises(WallDisplayError, match=r"^Motion\.GetConfig failed: TimeoutError$"):
+        await client.rpc("Motion.GetConfig", client_timeout=ClientTimeout(total=0.2))
+    assert len(twin.calls) == 2
+
+
+async def test_write_is_not_repeated(server, session) -> None:
+    """A write is sent once only: a repeated upload chunk or alert would do harm."""
+    twin, host = server
+    twin.failures = [500]
+    with pytest.raises(WallDisplayError):
+        await WallDisplayClient(session, host, None).play_alert(5)
+    assert len(twin.calls) == 1
+
+
+async def test_device_info_is_asked_once_more(server, session) -> None:
+    twin, host = server
+    twin.failures = [503]
+    info = await WallDisplayClient(session, host, None).get_device_info()
+    assert info.mac == "02a1b2c3d4e5"

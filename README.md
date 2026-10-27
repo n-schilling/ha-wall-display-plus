@@ -141,7 +141,9 @@ data:
 - Switches, numbers and buttons show their new value immediately.
 - Announcements, the playing state, the announcement delay and the cache hit rate update immediately.
 - When clips are uploaded or deleted, the cache sensors are refreshed right away.
-- When an announcement fails because the display does not answer, the entities become unavailable right away.
+- When an announcement fails because the display does not answer, the display is polled right away.
+
+**When the display does not answer:** a request that only reads is sent once more after a second; writes (uploads, playing a clip, settings) are never repeated. A failed poll keeps the last values and is repeated after a minute. Only after three failed polls in a row (about two minutes) do the entities become unavailable, and from then on the display is asked every minute until it answers again. Firmware 2.8.4 sometimes leaves a single request unanswered for half a minute; without this, every such hiccup made the entities unavailable for 10 minutes, and switching them did nothing in that time.
 
 What can be up to 10 minutes old: changes made **on the display itself** (its settings menu), memory, storage, CPU temperature, and a crash of the display app (the *App started* time itself is correct, it is computed back from the app's uptime).
 

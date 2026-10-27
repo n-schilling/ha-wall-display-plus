@@ -6,6 +6,7 @@ from datetime import timedelta
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
+from freezegun.api import FrozenDateTimeFactory
 import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry, async_fire_time_changed
 
@@ -36,7 +37,11 @@ from custom_components.wall_display_plus.api import (
     WallDisplayError,
     WallDisplayUnsupportedError,
 )
-from custom_components.wall_display_plus.const import UPDATE_INTERVAL
+from custom_components.wall_display_plus.const import (
+    RETRY_INTERVAL,
+    UNAVAILABLE_AFTER_FAILURES,
+    UPDATE_INTERVAL,
+)
 from custom_components.wall_display_plus.diagnostics import async_get_config_entry_diagnostics
 from custom_components.wall_display_plus.speaker import clip_filename
 
@@ -113,19 +118,62 @@ async def test_setup_auth_failure_starts_reauth(
     assert [f["context"]["source"] for f in flows] == [SOURCE_REAUTH]
 
 
-async def test_polling_failure_makes_entities_unavailable(
-    hass: HomeAssistant, display: FakeDisplay, setup_entry: MockConfigEntry
+async def _poll_after(
+    hass: HomeAssistant, freezer: FrozenDateTimeFactory, delta: timedelta
 ) -> None:
-    """When the display stops answering, the entities become unavailable and come back."""
+    freezer.tick(delta + timedelta(seconds=1))
+    async_fire_time_changed(hass)
+    await hass.async_block_till_done()
+
+
+async def test_polling_failure_makes_entities_unavailable(
+    hass: HomeAssistant,
+    display: FakeDisplay,
+    setup_entry: MockConfigEntry,
+    freezer: FrozenDateTimeFactory,
+) -> None:
+    """When the display stops answering for several polls, the entities become unavailable."""
     entity_id = _eid(hass, SWITCH_DOMAIN, "motion_wakes_screen")
     display.reachable = False
-    async_fire_time_changed(hass, dt_util.utcnow() + UPDATE_INTERVAL + timedelta(seconds=1))
-    await hass.async_block_till_done()
+    await _poll_after(hass, freezer, UPDATE_INTERVAL)
+    for _ in range(UNAVAILABLE_AFTER_FAILURES - 2):
+        await _poll_after(hass, freezer, RETRY_INTERVAL)
+    assert hass.states.get(entity_id).state == "on"
+    await _poll_after(hass, freezer, RETRY_INTERVAL)
     assert hass.states.get(entity_id).state == STATE_UNAVAILABLE
+    # An unavailable display is asked again every minute, not every 10 minutes
     display.reachable = True
-    async_fire_time_changed(hass, dt_util.utcnow() + 2 * UPDATE_INTERVAL + timedelta(seconds=2))
-    await hass.async_block_till_done()
-    assert hass.states.get(entity_id).state != STATE_UNAVAILABLE
+    await _poll_after(hass, freezer, RETRY_INTERVAL)
+    assert hass.states.get(entity_id).state == "on"
+
+
+async def test_single_failed_poll_keeps_entities(
+    hass: HomeAssistant,
+    display: FakeDisplay,
+    setup_entry: MockConfigEntry,
+    freezer: FrozenDateTimeFactory,
+) -> None:
+    """One failed poll keeps the last values, is repeated after a minute and stays switchable."""
+    entity_id = _eid(hass, SWITCH_DOMAIN, "motion_wakes_screen")
+    coordinator = setup_entry.runtime_data.coordinator
+    display.reachable = False
+    await _poll_after(hass, freezer, UPDATE_INTERVAL)
+    assert hass.states.get(entity_id).state == "on"
+    assert coordinator.update_interval == RETRY_INTERVAL
+    display.reachable = True
+    display.wake_screen = False
+    await _poll_after(hass, freezer, RETRY_INTERVAL)
+    assert hass.states.get(entity_id).state == "off"
+    assert coordinator.update_interval == UPDATE_INTERVAL
+    # The failure count starts again: a later single failure is tolerated too
+    display.reachable = False
+    await _poll_after(hass, freezer, UPDATE_INTERVAL)
+    assert hass.states.get(entity_id).state == "off"
+    display.reachable = True
+    await hass.services.async_call(
+        SWITCH_DOMAIN, "turn_on", {ATTR_ENTITY_ID: entity_id}, blocking=True
+    )
+    assert display.wake_screen is True
 
 
 async def test_daily_cleanup_handles_errors(

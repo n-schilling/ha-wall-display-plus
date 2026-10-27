@@ -49,6 +49,11 @@ AUTH_USER: Final = "admin"
 # the media library and failed announcements trigger an immediate refresh).
 # Users who need fresher values call homeassistant.update_entity.
 UPDATE_INTERVAL: Final = timedelta(minutes=10)
+# Firmware 2.8.4 sometimes leaves a request unanswered for half a minute. A
+# failed poll is repeated after a minute, and the entities only become
+# unavailable after this many failed polls in a row (about two minutes).
+RETRY_INTERVAL: Final = timedelta(minutes=1)
+UNAVAILABLE_AFTER_FAILURES: Final = 3
 CLEANUP_INTERVAL: Final = timedelta(hours=24)
 
 # Every clip this integration uploads is named
