@@ -26,7 +26,7 @@ Announcements play one after another; a second one waits for the first to finish
 
 | Device | Status |
 |---|---|
-| Wall Display XL (SAWD-3A1XE10EU2), firmware 2.8.2 | Supported and tested |
+| Wall Display XL (SAWD-3A1XE10EU2), firmware 2.8.2 and 2.8.4 | Supported and tested |
 | Other wall displays (for example SAWD-0A1XX10EU1) | Not offered and refused during setup |
 
 Only the Wall Display XL is offered: it has the speaker and the motion sensor this integration is about. The firmware of other wall displays offers the same media interface but does not report whether a speaker is built in, so the integration recognizes the XL by its model. If you have another model with a speaker that should be supported, please open an [issue](https://github.com/n-schilling/ha-wall-display-plus/issues) with its model name.
@@ -85,7 +85,7 @@ To keep the host from long work by mistake, texts are limited to 500 characters 
 
 ## Entities and functions
 
-Since Home Assistant 2026.10 a device belongs to a single integration, so the entities get their own device next to the one of the official integration. Both carry the display's MAC address.
+In Home Assistant a device belongs to a single integration, so the entities get their own device next to the one of the official integration. Both carry the display's MAC address.
 
 | Entity | What it does |
 |---|---|
@@ -107,7 +107,7 @@ Manual brightness and automatic brightness are left out on purpose: while automa
 
 ## Several displays (experimental)
 
-> **Experimental.** Playing on several displays at the same time is new and was tested with simulated displays only. How close together the displays start depends on the network and the displays. Behavior and options may still change. Please report what you observe in an [issue](https://github.com/n-schilling/ha-wall-display-plus/issues).
+> **Experimental.** Playing on several displays at the same time was tested with simulated displays only. How close together the displays start depends on the network and the displays. Behavior and options may still change. Please report what you observe in an [issue](https://github.com/n-schilling/ha-wall-display-plus/issues).
 
 One announcement for several displays plays on all of them at the same time:
 
@@ -143,7 +143,7 @@ data:
 - When clips are uploaded or deleted, the cache sensors are refreshed right away.
 - When an announcement fails because the display does not answer, the display is polled right away.
 
-**When the display does not answer:** a request that only reads is sent once more after a second; writes (uploads, playing a clip, settings) are never repeated. A failed poll keeps the last values and is repeated after a minute. Only after three failed polls in a row (about two minutes) do the entities become unavailable, and from then on the display is asked every minute until it answers again. Firmware 2.8.4 sometimes leaves a single request unanswered for half a minute; without this, every such hiccup made the entities unavailable for 10 minutes, and switching them did nothing in that time.
+**When the display does not answer:** a request that only reads is sent once more after a second; writes (uploads, playing a clip, settings) are never repeated. A failed poll keeps the last values and is repeated after a minute. Only after three failed polls in a row (about two minutes) do the entities become unavailable, and from then on the display is asked every minute until it answers again. That way a single request left unanswered for half a minute, as firmware 2.8.4 sometimes does, neither makes the entities unavailable nor keeps switching them from working.
 
 What can be up to 10 minutes old: changes made **on the display itself** (its settings menu), memory, storage, CPU temperature, and a crash of the display app (the *App started* time itself is correct, it is computed back from the app's uptime).
 
