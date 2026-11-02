@@ -263,7 +263,7 @@ With several displays, a display at 0 % is left out and the others play.
 - **Several displays (experimental)** start within the time the display needs to answer one request, not sample-accurate; on a busy network or a slow display you may hear an echo. Two announcements to several displays that share a display play one after another; announcements to different displays play at the same time.
 - **Playing state:** the speaker is *playing* while its own clip plays. Firmware 2.8.2 keeps reporting an alert clip as playing long after it ended, so that report is not used; an alert started on the display itself is not shown.
 - **Volume:** the display has a single volume for music and announcements. The speaker sets it to the announcement volume (or the announcement's own) for each clip and goes back afterwards. If that fails, the clip plays at the current volume. Music that plays while an announcement plays is heard at the announcement's volume for that time.
-- **The TTS voice is not part of the cache.** After changing the voice, press **Clear speaker cache**; cached announcements keep the old voice until they expire otherwise.
+- **A changed default TTS voice is not part of the cache.** A voice set in the announcement's options is; after changing the engine's or the assistant's default voice, press **Clear speaker cache**, otherwise cached announcements keep the old voice until they expire.
 - **What can be played:** text to speech, media sources and absolute `http(s)` URLs that return audio, up to 20 MB. Paths of your Home Assistant instance such as `/api/...` are refused: they would be fetched with a signature, so anyone allowed to call `play_media` could copy protected data into the display's media library, which can be read without a password.
 - **Motion and screen settings are written only when the value changes.** Every write makes the official integration reload, and its entities are unavailable for a moment. Do not change these settings from an automation that triggers on those entities becoming available again: that is a loop.
 - **Storage:** before every upload the integration checks the display's free storage. At least 100 MB must stay free; if not, it first deletes its own clips (never photos, videos, music or ringtones). If that is not enough, the clip is not uploaded and a repair issue "storage almost full" appears.
@@ -274,10 +274,10 @@ With several displays, a display at 0 % is left out and the others play.
 ## Privacy
 
 - **Clips stay on the display** until they were not played for the configured time (90 days by default) or the cache needs room. They are audio files in the display's media library.
-- **Set a password on the display.** Without one, any device on your network can list the media library. The file names (`homeassistant_<tag>_<key>`) show that a clip comes from Home Assistant, but do not reveal the texts (they are keyed with a random secret per display that only Home Assistant knows), but the files are there.
+- **Set a password on the display.** Without one, any device on your network can list the media library, and a device that pretends to be the display can take over its address and receive the announcements: the MAC that discovery checks can be read without a login. The file names (`homeassistant_<tag>_<key>`) show that a clip comes from Home Assistant, but do not reveal the texts (they are keyed with a random secret per display that only Home Assistant knows), but the files are there.
 - **For sensitive texts use `extra: {cache: false}`:** the clip is deleted right after it was played.
 - **The connection to the display is plain HTTP** (the display offers nothing else). Announcements travel unencrypted through your local network.
-- **Diagnostics hold nothing personal:** no password, address or MAC, no cache keys, file names or play times, nothing about what the display played. Error messages leave out the query part of URLs, which may carry tokens.
+- **Diagnostics hold nothing personal:** no password, address or MAC, no cache keys, file names or play times, nothing about what the display played. Error messages leave out user, password and query part of URLs, which may carry credentials or tokens.
 - **Clear speaker cache** also creates a new secret.
 - The integration sends no telemetry and contacts no third party; it only downloads URLs you ask it to play.
 

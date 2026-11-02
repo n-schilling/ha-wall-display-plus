@@ -79,7 +79,10 @@ def cache_key(secret: bytes, source: str) -> str:
 
 
 def clip_filename(tag: str, key: str, extension: str) -> str:
-    """Return the file name a clip gets on the display (ASCII, at most 50 bytes)."""
+    """Return the file name a clip gets on the display (ASCII, at most 50 bytes).
+
+    The firmware drops names over MAX_FILENAME_BYTES; ours stay far below.
+    """
     extension = extension.lower().lstrip(".")
     # Keep the real type (the display picks its decoder by it); only an
     # unusable extension becomes mp3, the most common format

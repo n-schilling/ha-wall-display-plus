@@ -4,6 +4,23 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 
 ## [Unreleased]
 
+## [0.1.9] - 2026-11-02
+
+### Fixed
+
+- Audio from a URL or a media source is downloaded completely. Only the first part (about 64 KB) was read: longer clips were cut off, their length was wrong, and since that part depends on the network, the same file was uploaded to the display again and again under a new name. The 20 MB limit now applies while downloading, also without a `Content-Length` header.
+
+### Security
+
+- Discovery never asks for the password of a display that is set up already, and confirming a discovered display never changes the address of one. A device announcing itself under another name but reporting the MAC of a display with a password was offered for confirmation; the password typed there sent the login to that device and moved the display to its address.
+- Re-entering the password checks the MAC: if the address belongs to another display by now, the password is not stored and the flow ends with "This address belongs to a different display."
+- Error messages leave out user and password of a URL (`https://user:password@…`), not only its query.
+- At most 4 announcements hold their audio at the same time; further ones download it once one has played. Many queued downloads of up to 20 MB each could fill the memory of the host.
+
+### Changed
+
+- README: without a password on the display, a device on the network can take over its address (the MAC that discovery checks is readable without login); a voice set in the options is part of the cache, only a changed default voice is not.
+
 ## [0.1.8] - 2026-10-27
 
 ### Fixed
@@ -103,6 +120,8 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 - Speaker groups (**experimental**): a fixed group of speakers as its own media player, added once at least two displays are set up, members changed in its options. It waits until all members have started and reports failed members. Members are stored by their registry ID, so they stay in the group when their entity ID changes.
 - Checked against the Home Assistant integration quality scale up to platinum (`quality_scale.yaml`): strict typing, 99 % test coverage, translated errors, brand images.
 
+[0.1.9]: https://github.com/n-schilling/ha-wall-display-plus/releases/tag/v0.1.9
+[0.1.8]: https://github.com/n-schilling/ha-wall-display-plus/releases/tag/v0.1.8
 [0.1.7]: https://github.com/n-schilling/ha-wall-display-plus/releases/tag/v0.1.7
 [0.1.6]: https://github.com/n-schilling/ha-wall-display-plus/releases/tag/v0.1.6
 [0.1.5]: https://github.com/n-schilling/ha-wall-display-plus/releases/tag/v0.1.5

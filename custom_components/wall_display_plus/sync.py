@@ -50,6 +50,11 @@ SYNC_TIMEOUT = 10.0
 # of the event loop. It runs while the audio is fetched and costs no time.
 JOIN_WINDOW = 0.05
 
+# Sessions that may hold their audio at the same time. A download can be up to
+# 20 MB and is kept until the session has played; further sessions fetch
+# their audio only when one of these has finished.
+MAX_HELD_ANNOUNCEMENTS = 4
+
 DATA_SYNC: HassKey[SyncManager] = HassKey(f"{DOMAIN}_sync")
 
 
@@ -86,6 +91,7 @@ class _Session:
     target: str
     created: float = field(default_factory=time.monotonic)
     open: bool = True
+    holds_audio: bool = False
     members: dict[str, Member] = field(default_factory=dict)
     results: dict[str, asyncio.Future[None]] = field(default_factory=dict)
 
@@ -101,6 +107,7 @@ class SyncManager:
         # that shares a display with one of them waits until it has started.
         self._busy: set[str] = set()
         self._busy_changed = asyncio.Condition()
+        self._audio_slots = asyncio.Semaphore(MAX_HELD_ANNOUNCEMENTS)
         # Speaker entities by entity ID, for the speaker groups
         self.members: dict[str, Member] = {}
 
@@ -182,9 +189,7 @@ class SyncManager:
 
     async def _async_run(self, session: _Session, key: tuple[str, str, str] | None) -> None:
         fetch = self._hass.async_create_task(
-            async_get_announcement(self._hass, session.media_id, session.target),
-            f"{DOMAIN} fetch audio",
-            eager_start=False,
+            self._async_fetch(session), f"{DOMAIN} fetch audio", eager_start=False
         )
         try:
             await asyncio.sleep(JOIN_WINDOW)
@@ -213,9 +218,17 @@ class SyncManager:
                     self._busy_changed.notify_all()
         finally:
             fetch.cancel()
+            if session.holds_audio:
+                self._audio_slots.release()
             for result in session.results.values():
                 if not result.done():
                     result.cancel()
+
+    async def _async_fetch(self, session: _Session) -> Announcement:
+        """Fetch the audio once a slot is free; the slot is kept until the session ends."""
+        await self._audio_slots.acquire()
+        session.holds_audio = True
+        return await async_get_announcement(self._hass, session.media_id, session.target)
 
     async def _async_play_together(self, session: _Session, announcement: Announcement) -> None:
         start = asyncio.Event()

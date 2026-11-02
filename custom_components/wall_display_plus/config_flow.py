@@ -69,6 +69,11 @@ class NotSupported(Exception):
 class InvalidAuth(Exception):
     """A password is needed or it is wrong."""
 
+    def __init__(self, device: DeviceInfo) -> None:
+        """Keep the device information: it is readable without the password."""
+        super().__init__()
+        self.device = device
+
 
 def _connection_schema() -> probatio.Schema:
     return probatio.Schema(
@@ -97,11 +102,11 @@ class WallDisplayConfigFlow(ConfigFlow, domain=DOMAIN):
         if not device.is_supported or not device.mac:
             raise NotSupported
         if device.auth_enabled and not password:
-            raise InvalidAuth
+            raise InvalidAuth(device)
         try:
             sys_config = await client.rpc("Sys.GetConfig")
         except WallDisplayAuthError as err:
-            raise InvalidAuth from err
+            raise InvalidAuth(device) from err
         except WallDisplayError as err:
             raise CannotConnect from err
         name = str((sys_config.get("device") or {}).get("name") or f"Wall display {host}")
@@ -188,14 +193,15 @@ class WallDisplayConfigFlow(ConfigFlow, domain=DOMAIN):
             return self.async_abort(reason="cannot_connect")
         except NotSupported:
             return self.async_abort(reason="not_supported")
-        except InvalidAuth:
-            pass  # the password is asked for in the next step
-        else:
-            await self.async_set_unique_id(device.mac)
-            if entry := self.hass.config_entries.async_entry_for_domain_unique_id(
-                DOMAIN, device.mac
-            ):
-                return await self._async_known_display_moved(entry, host)
+        except InvalidAuth as err:
+            # The password is asked for in the next step, but not for a
+            # display that is set up already: the name of the announcement
+            # proves nothing, and the digest login must not go to an
+            # unchecked device.
+            device = err.device
+        await self.async_set_unique_id(device.mac)
+        if entry := self.hass.config_entries.async_entry_for_domain_unique_id(DOMAIN, device.mac):
+            return await self._async_known_display_moved(entry, host)
         self._discovered_host = host
         self._discovered_name = name
         self.context["title_placeholders"] = {"name": name}
@@ -234,7 +240,8 @@ class WallDisplayConfigFlow(ConfigFlow, domain=DOMAIN):
             if result := await self._async_try(self._discovered_host, password, errors):
                 device, name = result
                 await self.async_set_unique_id(device.mac)
-                self._abort_if_unique_id_configured(updates={CONF_HOST: self._discovered_host})
+                # Discovery never moves a display (see _async_known_display_moved)
+                self._abort_if_unique_id_configured()
                 return self.async_create_entry(
                     title=name,
                     data={CONF_HOST: self._discovered_host, CONF_PASSWORD: password},
@@ -287,7 +294,10 @@ class WallDisplayConfigFlow(ConfigFlow, domain=DOMAIN):
         errors: dict[str, str] = {}
         if user_input is not None:
             password = user_input.get(CONF_PASSWORD) or None
-            if await self._async_try(entry.data[CONF_HOST], password, errors):
+            if result := await self._async_try(entry.data[CONF_HOST], password, errors):
+                # The address may belong to another display by now
+                await self.async_set_unique_id(result[0].mac)
+                self._abort_if_unique_id_mismatch(reason="wrong_device")
                 return self.async_update_reload_and_abort(
                     entry, data_updates={CONF_PASSWORD: password}
                 )

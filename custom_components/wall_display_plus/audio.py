@@ -29,6 +29,7 @@ from .const import DOMAIN
 _LOGGER = logging.getLogger(__name__)
 
 MAX_CLIP_BYTES = 20 * 1024 * 1024
+FETCH_CHUNK_BYTES = 64 * 1024
 FETCH_TIMEOUT = ClientTimeout(total=30)
 
 # Bit rate for estimating the length of audio whose format mutagen cannot
@@ -174,15 +175,22 @@ async def _async_fetch(hass: HomeAssistant, url: str, *, cache: bool) -> Announc
                 raise HomeAssistantError(
                     translation_domain=DOMAIN, translation_key="clip_too_large"
                 )
-            data = await resp.content.read(MAX_CLIP_BYTES + 1)
+            # read(n) returns only what is buffered so far, not n bytes:
+            # collect the chunks until the end or the limit.
+            body = bytearray()
+            async for chunk in resp.content.iter_chunked(FETCH_CHUNK_BYTES):
+                body += chunk
+                if len(body) > MAX_CLIP_BYTES:
+                    raise HomeAssistantError(
+                        translation_domain=DOMAIN, translation_key="clip_too_large"
+                    )
     except (ClientError, TimeoutError) as err:
         raise HomeAssistantError(
             translation_domain=DOMAIN,
             translation_key="fetch_failed",
             translation_placeholders={"error": _describe_fetch_error(err, url)},
         ) from err
-    if len(data) > MAX_CLIP_BYTES:
-        raise HomeAssistantError(translation_domain=DOMAIN, translation_key="clip_too_large")
+    data = bytes(body)
     source = f"content:{hashlib.sha256(data).hexdigest()}" if cache else None
     return Announcement(source=source, extension=_extension(url, mime_type), data=data)
 
@@ -190,7 +198,7 @@ async def _async_fetch(hass: HomeAssistant, url: str, *, cache: bool) -> Announc
 def _content_length(value: str | None) -> int:
     """Return the announced size; a missing or broken header counts as unknown (0).
 
-    The download is limited to MAX_CLIP_BYTES + 1 anyway.
+    The download stops past MAX_CLIP_BYTES anyway.
     """
     try:
         return int(value or 0)
@@ -207,9 +215,9 @@ def _extension(url: str, mime_type: str) -> str:
 
 
 def _without_query(url: str) -> str:
-    """Drop query and fragment: they may carry tokens or signatures."""
+    """Drop user, password, query and fragment: they may carry credentials or tokens."""
     try:
-        return str(yarl.URL(url).with_query(None).with_fragment(None))
+        return str(yarl.URL(url).with_user(None).with_query(None).with_fragment(None))
     except TypeError, ValueError:
         return "<invalid URL>"
 
