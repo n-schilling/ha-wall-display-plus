@@ -13,6 +13,7 @@ from typing import Any
 from homeassistant.const import CONF_HOST, CONF_PASSWORD, Platform
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import ConfigEntryNotReady
+from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.event import async_track_time_interval
 from homeassistant.helpers.storage import Store
@@ -27,7 +28,16 @@ from .const import (
     DOMAIN,
     STORAGE_VERSION,
 )
-from .coordinator import RuntimeData, WallDisplayConfigEntry, WallDisplayCoordinator, is_group
+from .coordinator import (
+    DeviceChangedError,
+    RuntimeData,
+    WallDisplayConfigEntry,
+    WallDisplayCoordinator,
+    async_create_device_issue,
+    check_device,
+    device_issue_id,
+    is_group,
+)
 from .speaker import Speaker, owns
 
 _LOGGER = logging.getLogger(__name__)
@@ -63,12 +73,15 @@ async def async_setup_entry(hass: HomeAssistant, entry: WallDisplayConfigEntry) 
             translation_key="cannot_connect",
             translation_placeholders={"host": entry.data[CONF_HOST], "error": str(err)},
         ) from err
-    if entry.unique_id and device.mac != entry.unique_id:
+    try:
+        check_device(entry, device)
+    except DeviceChangedError as err:
+        async_create_device_issue(hass, entry, err)
         raise ConfigEntryNotReady(
             translation_domain=DOMAIN,
-            translation_key="wrong_device",
-            translation_placeholders={"host": entry.data[CONF_HOST], "mac": device.mac},
-        )
+            translation_key=err.key,
+            translation_placeholders=err.placeholders,
+        ) from err
 
     speaker = Speaker(
         hass,
@@ -85,7 +98,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: WallDisplayConfigEntry) 
     @callback
     def _library_changed() -> None:
         entry.async_create_background_task(
-            hass, coordinator.async_request_refresh(), "wall_display_plus refresh"
+            hass, coordinator.async_request_cache_stats(), "wall_display_plus cache statistics"
         )
 
     speaker.on_library_change = _library_changed
@@ -133,11 +146,14 @@ async def async_remove_entry(hass: HomeAssistant, entry: WallDisplayConfigEntry)
     )
     store: Store[dict[str, Any]] = Store(hass, STORAGE_VERSION, f"{DOMAIN}.{entry.entry_id}.cache")
     tag = (await store.async_load() or {}).get("tag")
+    ir.async_delete_issue(hass, DOMAIN, device_issue_id(entry))
     try:
         async with asyncio.timeout(REMOVE_TIMEOUT):
+            # Only the configured display, see check_device
+            check_device(entry, await client.get_device_info())
             for item in await client.list_media():
                 if owns(item.filename, tag):
                     await client.delete_media(item.id)
-    except (WallDisplayError, TimeoutError) as err:
+    except (WallDisplayError, DeviceChangedError, TimeoutError) as err:
         _LOGGER.debug("Clips stay on the display: %s", err)
     await store.async_remove()

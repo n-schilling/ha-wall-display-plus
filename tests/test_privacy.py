@@ -8,7 +8,7 @@ from typing import Any
 from unittest.mock import AsyncMock, patch
 
 import pytest
-from pytest_homeassistant_custom_component.common import MockConfigEntry
+from pytest_homeassistant.common import MockConfigEntry
 
 from homeassistant.components.button import DOMAIN as BUTTON_DOMAIN, SERVICE_PRESS
 from homeassistant.components.media_player import (
@@ -154,23 +154,22 @@ async def test_clear_cache_creates_new_secret(
 async def test_download_error_hides_query(
     hass: HomeAssistant, aioclient_mock, display: FakeDisplay, setup_entry: MockConfigEntry
 ) -> None:
-    """A failing download does not repeat the URL's token."""
+    """A failing download tells neither the URL's token nor the answer of the server."""
     aioclient_mock.get("https://example.com/clip.mp3?token=geheim", status=403)
     with pytest.raises(HomeAssistantError) as err:
         await _play(hass, "https://example.com/clip.mp3?token=geheim")
     assert "geheim" not in str(err.value)
-    assert "403" in str(err.value)
+    assert "403" not in str(err.value)
 
 
 async def test_connection_error_hides_query(
     hass: HomeAssistant, aioclient_mock, display: FakeDisplay, setup_entry: MockConfigEntry
 ) -> None:
-    """Also a network error names the URL without its query."""
+    """A network error tells neither the URL nor the kind of error."""
     aioclient_mock.get("https://example.com/clip.mp3?token=geheim", exc=TimeoutError())
     with pytest.raises(HomeAssistantError) as err:
         await _play(hass, "https://example.com/clip.mp3?token=geheim")
-    assert "geheim" not in str(err.value)
-    assert "https://example.com/clip.mp3" in str(err.value)
+    assert str(err.value).rstrip(".") == "The audio could not be downloaded"
 
 
 async def test_unsupported_media_hides_query(

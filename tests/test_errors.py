@@ -8,7 +8,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 from freezegun.api import FrozenDateTimeFactory
 import pytest
-from pytest_homeassistant_custom_component.common import MockConfigEntry, async_fire_time_changed
+from pytest_homeassistant.common import MockConfigEntry, async_fire_time_changed
 
 from homeassistant.components.button import DOMAIN as BUTTON_DOMAIN, SERVICE_PRESS
 from homeassistant.components.media_player import (
@@ -102,7 +102,7 @@ async def test_setup_wrong_device(
     config_entry.add_to_hass(hass)
     await hass.config_entries.async_setup(config_entry.entry_id)
     assert config_entry.state is ConfigEntryState.SETUP_RETRY
-    assert "different display" in str(config_entry.reason)
+    assert "different device" in str(config_entry.reason)
 
 
 async def test_setup_auth_failure_starts_reauth(
@@ -305,6 +305,13 @@ async def test_state_playing_and_stop(
         MP_DOMAIN, SERVICE_MEDIA_STOP, {ATTR_ENTITY_ID: entity_id}, blocking=True
     )
     assert hass.states.get(entity_id).state == STATE_IDLE
+    assert display.stops == 1
+    # Without a clip of the integration, the display's own player is left alone
+    await hass.services.async_call(
+        MP_DOMAIN, SERVICE_MEDIA_STOP, {ATTR_ENTITY_ID: entity_id}, blocking=True
+    )
+    assert display.stops == 1
+    await _play(hass, TTS)
     _fail(display, "stop", WallDisplayError("down"))
     with pytest.raises(HomeAssistantError, match="could not be stopped"):
         await hass.services.async_call(

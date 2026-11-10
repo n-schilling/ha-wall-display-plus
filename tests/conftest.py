@@ -3,17 +3,20 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Generator
+from collections.abc import AsyncIterator, Generator
+from contextlib import asynccontextmanager
 import copy
 import time
 from typing import Any
 from unittest.mock import patch
 
+from aiohttp import ClientSession
 import pytest
-from pytest_homeassistant_custom_component.common import MockConfigEntry
+from pytest_homeassistant.common import MockConfigEntry
 
 from homeassistant.const import CONF_HOST, CONF_PASSWORD
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from custom_components.wall_display_plus.api import (
     DeviceInfo,
@@ -43,6 +46,7 @@ class FakeDisplay:
         self.auth_enabled = False
         self.app = "WallDisplayV2"
         self.model = "SAWD-3A1XE10EU2"
+        self.firmware = "2.8.2"
         self.library: dict[int, MediaItem] = {
             1: MediaItem(1, "digital_alarm.mp3", "RINGTONE"),
             2: MediaItem(2, "song.mp3", "AUDIO"),
@@ -114,7 +118,7 @@ class FakeDisplay:
         return DeviceInfo(
             mac=self.mac,
             model=self.model,
-            firmware="2.8.2",
+            firmware=self.firmware,
             app=self.app,
             auth_enabled=self.auth_enabled,
             fs_free=self.fs_free,
@@ -208,9 +212,21 @@ class FakeDisplay:
         self.motion_writes += 1
 
 
+@asynccontextmanager
+async def _mocked_public_session(hass: HomeAssistant) -> AsyncIterator[ClientSession]:
+    """Home Assistant's session, which aioclient_mock answers in the tests."""
+    yield async_get_clientsession(hass)
+
+
 @pytest.fixture(autouse=True)
-def auto_enable_custom_integrations(enable_custom_integrations: None) -> None:
-    """Load the integration from custom_components."""
+def mock_public_session() -> Generator[None]:
+    """Download URLs through the session aioclient_mock answers.
+
+    The real session only connects to public addresses; tests/test_url_guard.py
+    covers it.
+    """
+    with patch("custom_components.wall_display_plus.audio._public_session", _mocked_public_session):
+        yield
 
 
 @pytest.fixture

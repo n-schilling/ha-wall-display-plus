@@ -19,11 +19,9 @@ from homeassistant.components.number import (
 )
 from homeassistant.const import PERCENTAGE, EntityCategory, UnitOfTime
 from homeassistant.core import HomeAssistant
-from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from .api import WallDisplayError
-from .const import DOMAIN
 from .coordinator import WallDisplayConfigEntry, ui_value
 from .entity import WallDisplayEntity
 
@@ -108,11 +106,7 @@ class ScreenNumber(WallDisplayEntity, NumberEntity):
         try:
             await self.coordinator.async_set_ui(self.entity_description.path, round(value))
         except WallDisplayError as err:
-            raise HomeAssistantError(
-                translation_domain=DOMAIN,
-                translation_key="set_failed",
-                translation_placeholders={"error": str(err)},
-            ) from err
+            raise self.write_error(err, "set_failed") from err
 
 
 class AnnouncementVolumeNumber(WallDisplayEntity, RestoreNumber):

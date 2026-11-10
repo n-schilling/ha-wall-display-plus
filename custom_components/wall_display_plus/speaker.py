@@ -51,6 +51,9 @@ _LOGGER = logging.getLogger(__name__)
 
 # An uncached clip is deleted this long after it finished playing.
 DELETE_GRACE = 2.0
+# Seconds before going back to the previous volume is tried once more, when
+# the display did not answer (firmware 2.8.4 sometimes does not for a while).
+RESTORE_RETRY_DELAY = 5.0
 
 
 @dataclass(slots=True)
@@ -227,10 +230,7 @@ class Speaker:
         self._busy_until = now + duration + PLAYBACK_MARGIN
         self.playing_until = now + duration
         if self._restore_volume is not None:
-            self._restore_task = self._hass.async_create_background_task(
-                self._restore_volume_later(duration + PLAYBACK_MARGIN),
-                f"{DOMAIN} restore volume",
-            )
+            self._schedule_restore(duration + PLAYBACK_MARGIN)
 
         if audio.key is None:
             # Not cached: delete it once it has been played.
@@ -249,10 +249,7 @@ class Speaker:
         self.playing_until = now
         self._busy_until = min(self._busy_until, now)
         if self._restore_task is not None:
-            self._restore_task.cancel()
-            self._restore_task = self._hass.async_create_background_task(
-                self._restore_volume_later(0), f"{DOMAIN} restore volume"
-            )
+            self._schedule_restore(0)
 
     async def discard(self, audio: ClipAudio, prepared: PreparedClip) -> None:
         """Forget a prepared clip that will not play; an uncached one is deleted."""
@@ -287,7 +284,9 @@ class Speaker:
         """Set the volume for one clip and remember the one to go back to.
 
         A failure does not stop the announcement: it plays at the current
-        volume. If the display is gone, playing fails anyway.
+        volume. If the display is gone, playing fails anyway. While an earlier
+        volume is still to be restored, that one stays the volume to go back
+        to: the current one is only the volume of the last clip.
         """
         try:
             playback = (await self._client.get_media_status()).get("playback") or {}
@@ -298,25 +297,42 @@ class Speaker:
         except WallDisplayError as err:
             _LOGGER.debug("Could not set the volume of the clip: %s", err)
             return
-        self._restore_volume = current
+        if self._restore_volume is None:
+            self._restore_volume = current
 
-    async def _restore_volume_now(self) -> None:
+    def _schedule_restore(self, delay: float, *, retry: bool = True) -> None:
+        """Go back to the previous volume after the delay (replaces a pending one)."""
+        if self._restore_task is not None:
+            self._restore_task.cancel()
+        self._restore_task = self._hass.async_create_background_task(
+            self._restore_volume_later(delay, retry=retry), f"{DOMAIN} restore volume"
+        )
+
+    async def _restore_volume_now(self, *, retry: bool = True) -> None:
+        """Go back to the previous volume; the value is kept until that worked.
+
+        If the display does not answer, it is tried once more after
+        RESTORE_RETRY_DELAY, and again before the next clip.
+        """
         if self._restore_task is not None:
             self._restore_task.cancel()
             self._restore_task = None
         if self._restore_volume is None:
             return
-        volume, self._restore_volume = self._restore_volume, None
         try:
-            await self._client.set_volume(volume)
+            await self._client.set_volume(self._restore_volume)
         except WallDisplayError as err:
             _LOGGER.debug("Could not restore the volume: %s", err)
+            if retry:
+                self._schedule_restore(RESTORE_RETRY_DELAY, retry=False)
+            return
+        self._restore_volume = None
 
-    async def _restore_volume_later(self, delay: float) -> None:
+    async def _restore_volume_later(self, delay: float, *, retry: bool = True) -> None:
         await asyncio.sleep(delay)
         async with self._lock:
             self._restore_task = None
-            await self._restore_volume_now()
+            await self._restore_volume_now(retry=retry)
 
     async def _make_room(self, audio: ClipAudio) -> None:
         """Keep the cache under its limit and enough storage free for the clip.

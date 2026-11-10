@@ -36,7 +36,7 @@ from homeassistant.core import Context, HomeAssistant, callback
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.util.hass_dict import HassKey
 
-from .audio import Announcement, async_get_announcement
+from .audio import Announcement, async_check_permission, async_get_announcement
 from .const import DOMAIN
 from .speaker import ClipAudio, Speaker
 
@@ -125,6 +125,7 @@ class SyncManager:
         group) raise if any of them failed. Members that would play at
         volume 0 are skipped.
         """
+        await async_check_permission(self._hass, context, media_id)
         for member in members:
             member.check_request(media_id)
         silent = [m.entity_id for m in members if m.speaker.clip_volume(volume) == 0]

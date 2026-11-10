@@ -8,11 +8,9 @@ from typing import Any
 from homeassistant.components.switch import SwitchEntity, SwitchEntityDescription
 from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant
-from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from .api import WallDisplayError
-from .const import DOMAIN
 from .coordinator import WallDisplayConfigEntry, ui_value
 from .entity import WallDisplayEntity
 
@@ -79,11 +77,7 @@ class MotionWakesScreenSwitch(WallDisplayEntity, SwitchEntity):
             if current != enabled:
                 await client.set_wake_screen(enabled)
         except WallDisplayError as err:
-            raise HomeAssistantError(
-                translation_domain=DOMAIN,
-                translation_key="set_failed",
-                translation_placeholders={"error": str(err)},
-            ) from err
+            raise self.write_error(err, "set_failed") from err
         self.coordinator.async_set_updated_data(replace(self.coordinator.data, wake_screen=enabled))
 
 
@@ -116,8 +110,4 @@ class ScreenSwitch(WallDisplayEntity, SwitchEntity):
         try:
             await self.coordinator.async_set_ui(self.entity_description.path, enabled)
         except WallDisplayError as err:
-            raise HomeAssistantError(
-                translation_domain=DOMAIN,
-                translation_key="set_failed",
-                translation_placeholders={"error": str(err)},
-            ) from err
+            raise self.write_error(err, "set_failed") from err

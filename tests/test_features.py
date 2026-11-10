@@ -7,7 +7,7 @@ from typing import Any
 from unittest.mock import AsyncMock, patch
 
 import pytest
-from pytest_homeassistant_custom_component.common import (
+from pytest_homeassistant.common import (
     MockConfigEntry,
     async_fire_time_changed,
     mock_restore_cache_with_extra_data,
@@ -526,15 +526,30 @@ async def test_polls_every_ten_minutes(
     assert setup_entry.runtime_data.coordinator.update_interval == timedelta(minutes=10)
 
 
-async def test_upload_refreshes_at_once(
+async def test_upload_updates_the_cache_sensors_soon(
     hass: HomeAssistant, display: FakeDisplay, setup_entry: MockConfigEntry, tts_audio
 ) -> None:
-    """After an upload the cache sensors are right without waiting for the poll."""
+    """After an upload the cache sensors are right within seconds, with one request."""
     entity_id = _eid(hass, "sensor", "cache_clips")
     assert hass.states.get(entity_id).state == "0"
     await _play(hass)
     await hass.async_block_till_done()
+    calls = display.list_calls
+    infos = 0
+    original = display.get_device_info
+
+    async def counting() -> Any:
+        nonlocal infos
+        infos += 1
+        return await original()
+
+    display.get_device_info = counting  # type: ignore[method-assign]
+    async_fire_time_changed(hass, dt_util.utcnow() + timedelta(seconds=6))  # past the cooldown
+    await hass.async_block_till_done()
     assert hass.states.get(entity_id).state == "1"
+    # Only the library is read, not a full poll
+    assert display.list_calls == calls + 1
+    assert infos == 0
 
 
 async def test_cache_hit_does_not_poll(

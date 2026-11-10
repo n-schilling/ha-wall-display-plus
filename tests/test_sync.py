@@ -9,7 +9,7 @@ from typing import Any
 from unittest.mock import AsyncMock, patch
 
 import pytest
-from pytest_homeassistant_custom_component.common import MockConfigEntry, async_fire_time_changed
+from pytest_homeassistant.common import MockConfigEntry, async_fire_time_changed
 
 from homeassistant import config_entries
 from homeassistant.components.media_player import (
@@ -529,6 +529,8 @@ async def test_group_stop_and_browse(
     """Stop goes to all members; browsing shows audio media sources."""
     entry = await _create_group(hass, _speakers(hass))
     group = _group_id(hass, entry)
+    for member in entries:  # a clip plays on every display
+        member.runtime_data.speaker.playing_until = time.monotonic() + 30
     await hass.services.async_call(
         MP_DOMAIN, SERVICE_MEDIA_STOP, {ATTR_ENTITY_ID: group}, blocking=True
     )

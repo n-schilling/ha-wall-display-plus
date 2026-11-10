@@ -194,7 +194,7 @@
       "message": "The text-to-speech engine failed: {error}"
     },
     "fetch_failed": {
-      "message": "The audio could not be downloaded: {error}"
+      "message": "The audio could not be downloaded."
     },
     "clip_too_large": {
       "message": "The audio is larger than 20 MB."
@@ -224,7 +224,7 @@
       "message": "The display at {host} does not answer: {error}"
     },
     "wrong_device": {
-      "message": "The address {host} now belongs to a different display ({mac}). Change the address in the integration's settings."
+      "message": "The address {host} now belongs to a different device ({mac}). Nothing is sent to it."
     },
     "update_failed": {
       "message": "The display could not be read: {error}"
@@ -255,6 +255,12 @@
     },
     "speaker_unavailable": {
       "message": "The speaker of this display is not available."
+    },
+    "url_not_public": {
+      "message": "Audio from a URL is only played from public addresses. Play files from your own network through a media source (for example My media)."
+    },
+    "auth_disabled": {
+      "message": "The device at {host} no longer asks for the password stored for it. Nothing is sent to it."
     }
   },
   "issues": {
@@ -265,6 +271,14 @@
     "storage_full": {
       "title": "{title}: storage almost full",
       "description": "The wall display {title} has only {free_mb} MB of free storage. A clip is only uploaded if at least {reserve_mb} MB stay free, and deleting the clips of this integration was not enough.\n\nDelete photos, videos or music in the display's web interface. The issue disappears by itself once a clip plays again."
+    },
+    "wrong_device": {
+      "title": "{title}: a different device answers at its address",
+      "description": "A different device ({mac}) answers at {host}, the address of the wall display {title}. Nothing is sent to it, and the display's entities are unavailable.\n\nGive the display a fixed address in your router (DHCP reservation), then change the address with **Reconfigure** in the integration's settings. The issue disappears by itself once the display answers at its address again."
+    },
+    "auth_disabled": {
+      "title": "{title}: the display no longer asks for its password",
+      "description": "The device at {host} no longer asks for the password stored for the wall display {title}. Nothing is sent to it, and the display's entities are unavailable: another device may have taken over the address.\n\nIf you turned the password off on the display yourself, remove it with **Reconfigure** in the integration's settings. Otherwise check which device has the address {host}. The issue disappears by itself once the display asks for its password again."
     }
   }
 }

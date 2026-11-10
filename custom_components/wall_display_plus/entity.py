@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.device_registry import CONNECTION_NETWORK_MAC, DeviceInfo, format_mac
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
+from .api import WallDisplayAuthError, WallDisplayError
 from .const import DOMAIN
 from .coordinator import WallDisplayConfigEntry, WallDisplayCoordinator
 
@@ -32,4 +34,19 @@ class WallDisplayEntity(CoordinatorEntity[WallDisplayCoordinator]):
             name=entry.title,
             model=device.model,
             sw_version=device.firmware,
+        )
+
+    def write_error(self, err: WallDisplayError, translation_key: str) -> HomeAssistantError:
+        """Turn an error of the display into the one the action call raises.
+
+        A rejected password starts re-authentication at once instead of with
+        the next poll.
+        """
+        if isinstance(err, WallDisplayAuthError):
+            self._entry.async_start_reauth(self.hass)
+            return HomeAssistantError(translation_domain=DOMAIN, translation_key="invalid_auth")
+        return HomeAssistantError(
+            translation_domain=DOMAIN,
+            translation_key=translation_key,
+            translation_placeholders={"error": str(err)},
         )

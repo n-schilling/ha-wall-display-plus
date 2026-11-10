@@ -10,7 +10,7 @@ from unittest.mock import patch
 from aiohttp import web
 from aiohttp.test_utils import TestServer
 import pytest
-from pytest_homeassistant_custom_component.common import MockConfigEntry
+from pytest_homeassistant.common import MockConfigEntry
 
 from homeassistant import config_entries
 from homeassistant.const import CONF_HOST, CONF_PASSWORD
@@ -18,6 +18,7 @@ from homeassistant.core import Context, HomeAssistant
 from homeassistant.data_entry_flow import FlowResultType
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import entity_registry as er
+from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.service_info.zeroconf import ZeroconfServiceInfo
 
 from custom_components.wall_display_plus.audio import Announcement, _async_fetch, _without_query
@@ -53,8 +54,8 @@ async def audio_url(socket_enabled: None) -> AsyncGenerator[str]:
 
 async def test_download_reads_the_whole_clip(hass: HomeAssistant, audio_url: str) -> None:
     """A clip that arrives in pieces is read to the end, not cut after the first."""
-    first = await _async_fetch(hass, audio_url, cache=True)
-    second = await _async_fetch(hass, audio_url, cache=True)
+    first = await _async_fetch(async_get_clientsession(hass), audio_url, cache=True)
+    second = await _async_fetch(async_get_clientsession(hass), audio_url, cache=True)
     assert len(first.data) == CLIP_SIZE
     # The cache key depends on the content only, not on how it arrived
     assert first.source == second.source
@@ -66,7 +67,7 @@ async def test_download_stops_past_the_limit(hass: HomeAssistant, audio_url: str
         patch("custom_components.wall_display_plus.audio.MAX_CLIP_BYTES", 100_000),
         pytest.raises(HomeAssistantError) as err,
     ):
-        await _async_fetch(hass, audio_url, cache=True)
+        await _async_fetch(async_get_clientsession(hass), audio_url, cache=True)
     assert err.value.translation_key == "clip_too_large"
 
 

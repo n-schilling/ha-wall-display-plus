@@ -9,7 +9,7 @@ from typing import Any
 from unittest.mock import AsyncMock, patch
 
 import pytest
-from pytest_homeassistant_custom_component.common import MockConfigEntry, async_fire_time_changed
+from pytest_homeassistant.common import MockConfigEntry, async_fire_time_changed
 
 from homeassistant.components.media_player import (
     ATTR_MEDIA_CONTENT_ID,
@@ -113,8 +113,11 @@ async def test_clip_end_does_not_touch_the_library(
     await _play(hass)
     await hass.async_block_till_done()
     await asyncio.sleep(0.1)  # the simulated clip lasts 50 ms of real time
+    # The cache sensors follow the upload after a few seconds
+    async_fire_time_changed(hass, dt_util.utcnow() + timedelta(seconds=6))
+    await hass.async_block_till_done()
     calls = display.list_calls
-    async_fire_time_changed(hass, dt_util.utcnow() + timedelta(seconds=5))
+    async_fire_time_changed(hass, dt_util.utcnow() + timedelta(seconds=12))
     await hass.async_block_till_done()
     assert display.list_calls == calls
     assert hass.states.get(_eid(hass, MP_DOMAIN, "speaker")).state == STATE_IDLE
@@ -171,7 +174,7 @@ async def test_broken_content_length(
 ) -> None:
     """A broken Content-Length header does not break the download."""
     aioclient_mock.get(
-        "http://192.0.2.1/ding.mp3",
+        "https://example.com/ding.mp3",
         content=b"ID3",
         headers={"Content-Type": "audio/mpeg", "Content-Length": "abc"},
     )
@@ -180,7 +183,7 @@ async def test_broken_content_length(
         SERVICE_PLAY_MEDIA,
         {
             ATTR_ENTITY_ID: _eid(hass, MP_DOMAIN, "speaker"),
-            ATTR_MEDIA_CONTENT_ID: "http://192.0.2.1/ding.mp3",
+            ATTR_MEDIA_CONTENT_ID: "https://example.com/ding.mp3",
             ATTR_MEDIA_CONTENT_TYPE: "music",
         },
         blocking=True,
@@ -192,7 +195,7 @@ async def test_changed_file_behind_the_same_url_is_uploaded_anew(
     hass: HomeAssistant, aioclient_mock, display: FakeDisplay, setup_entry: MockConfigEntry
 ) -> None:
     """Downloads are cached by content: new content means a new clip, same content a hit."""
-    url = "http://192.0.2.1/latest_message.mp3"
+    url = "https://example.com/latest_message.mp3"
 
     async def play(content: bytes) -> None:
         aioclient_mock.clear_requests()

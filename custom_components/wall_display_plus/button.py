@@ -130,11 +130,7 @@ class ClearCacheButton(WallDisplayEntity, ButtonEntity):
         try:
             await self._entry.runtime_data.speaker.async_clear()
         except WallDisplayError as err:
-            raise HomeAssistantError(
-                translation_domain=DOMAIN,
-                translation_key="clear_failed",
-                translation_placeholders={"error": str(err)},
-            ) from err
+            raise self.write_error(err, "clear_failed") from err
 
 
 class RestartAppButton(WallDisplayEntity, ButtonEntity):
@@ -156,8 +152,4 @@ class RestartAppButton(WallDisplayEntity, ButtonEntity):
         try:
             await self._entry.runtime_data.client.restart_app()
         except WallDisplayError as err:
-            raise HomeAssistantError(
-                translation_domain=DOMAIN,
-                translation_key="restart_failed",
-                translation_placeholders={"error": str(err)},
-            ) from err
+            raise self.write_error(err, "restart_failed") from err

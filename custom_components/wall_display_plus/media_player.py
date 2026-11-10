@@ -208,7 +208,8 @@ class WallDisplaySpeaker(WallDisplayEntity, MediaPlayerEntity):
         return err
 
     def _create_unsupported_issue(self, error: str) -> None:
-        device = self._entry.runtime_data.device
+        # The latest poll knows a firmware update made since the setup
+        device = self.coordinator.data.device or self._entry.runtime_data.device
         ir.async_create_issue(
             self.hass,
             DOMAIN,
@@ -254,7 +255,13 @@ class WallDisplaySpeaker(WallDisplayEntity, MediaPlayerEntity):
         self.async_write_ha_state()
 
     async def async_media_stop(self) -> None:
-        """Stop the clip that is playing."""
+        """Stop the clip that is playing; without one, nothing is stopped.
+
+        The display has one player: stopping it while no clip of this
+        integration plays would stop the display's own music.
+        """
+        if time.monotonic() >= self.speaker.playing_until:
+            return
         try:
             await self._entry.runtime_data.client.stop()
         except WallDisplayError as err:

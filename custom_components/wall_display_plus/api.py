@@ -179,17 +179,13 @@ class WallDisplayClient:
             return await resp.json(content_type=None)
 
     async def list_media(self) -> list[MediaItem]:
-        """Return all files in the media library."""
+        """Return all files in the media library; entries it cannot read are left out."""
         result = await self.rpc("Media.List")
+        entries = result.get("list")
         return [
-            MediaItem(
-                id=int(item["id"]),
-                filename=str(item["filename"]),
-                type=str(item.get("type", "")),
-                size=int(item.get("size") or 0),
-            )
-            for item in result.get("list", [])
-            if "id" in item and "filename" in item
+            item
+            for entry in (entries if isinstance(entries, list) else [])
+            if (item := _media_item(entry)) is not None
         ]
 
     async def upload(self, filename: str, media_type: str, data: bytes) -> None:
@@ -228,9 +224,11 @@ class WallDisplayClient:
     async def play_alert(self, media_id: int) -> PlaybackResult:
         """Play an alert clip once, without touching the music playlist."""
         result = await self.rpc("Media.MediaPlayer.PlayAlert", {"id": media_id})
-        clip = result.get("audio_clip") or result.get("playback") or {}
-        meta = clip.get("media_meta") or {}
-        duration_ms = meta.get("duration") or 0
+        clip = result.get("audio_clip") or result.get("playback")
+        meta = clip.get("media_meta") if isinstance(clip, dict) else None
+        duration_ms = meta.get("duration") if isinstance(meta, dict) else None
+        if not isinstance(duration_ms, int | float) or isinstance(duration_ms, bool):
+            return PlaybackResult(duration=0.0)  # unknown
         return PlaybackResult(duration=max(float(duration_ms) / 1000, 0.0))
 
     async def stop(self) -> None:
@@ -302,6 +300,21 @@ def _reads(method: str) -> bool:
 def _describe(err: Exception) -> str:
     """Return the error text; a timeout has none of its own."""
     return str(err) or type(err).__name__
+
+
+def _media_item(entry: Any) -> MediaItem | None:
+    """Read one entry of Media.List; None if it is not what firmware 2.8 sends."""
+    if not isinstance(entry, dict):
+        return None
+    media_id, filename = _int_or_none(entry.get("id")), entry.get("filename")
+    if media_id is None or not isinstance(filename, str):
+        return None
+    return MediaItem(
+        id=media_id,
+        filename=filename,
+        type=str(entry.get("type", "")),
+        size=_int_or_none(entry.get("size")) or 0,
+    )
 
 
 def _int_or_none(value: Any) -> int | None:
