@@ -262,6 +262,13 @@ async def test_media_source_with_a_public_url(
         ("fe80::1%eth0", False),
         ("::ffff:10.0.0.1", False),
         ("239.255.255.250", False),
+        ("64:ff9b::7f00:1", False),
+        ("64:ff9b::5db8:d70e", False),
+        ("64:ff9b:1::a00:1", False),
+        ("2002:7f00:1::", False),
+        ("2002:5db8:d70e::1", False),
+        ("2001:0:4136:e378:8000:63bf:80ff:fffe", False),
+        ("fec0::1", False),
     ],
 )
 def test_is_public(address: str, public: bool) -> None:

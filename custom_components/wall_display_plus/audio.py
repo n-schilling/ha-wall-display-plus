@@ -198,12 +198,34 @@ class BlockedAddressError(ClientError):
     """The URL points to an address that is not public."""
 
 
+# IPv6 prefixes that carry an IPv4 address in their last 32 bits (NAT64)
+_NAT64 = (ipaddress.IPv6Network("64:ff9b::/96"), ipaddress.IPv6Network("64:ff9b:1::/48"))
+
+
 def is_public(address: str) -> bool:
-    """Return whether an IP address is public (not local, private or reserved)."""
+    """Return whether an IP address is public (not local, private or reserved).
+
+    An IPv6 address that carries an IPv4 address (mapped, 6to4, Teredo,
+    NAT64) is judged by that IPv4 address as well: a gateway on the network
+    would otherwise forward it to a local one.
+    """
     ip = ipaddress.ip_address(address.split("%")[0])
-    if isinstance(ip, ipaddress.IPv6Address) and ip.ipv4_mapped is not None:
-        ip = ip.ipv4_mapped
-    return ip.is_global and not ip.is_multicast
+    candidates: list[ipaddress.IPv4Address | ipaddress.IPv6Address] = [ip]
+    if isinstance(ip, ipaddress.IPv6Address):
+        if ip.ipv4_mapped is not None:
+            candidates.append(ip.ipv4_mapped)
+        if ip.sixtofour is not None:
+            candidates.append(ip.sixtofour)
+        if ip.teredo is not None:
+            candidates.extend(ip.teredo)
+        if any(ip in network for network in _NAT64):
+            candidates.append(ipaddress.IPv4Address(int(ip) & 0xFFFFFFFF))
+    return all(
+        c.is_global and not (c.is_multicast or c.is_reserved or c.is_site_local)
+        if isinstance(c, ipaddress.IPv6Address)
+        else c.is_global and not (c.is_multicast or c.is_reserved)
+        for c in candidates
+    )
 
 
 class _PublicResolver(AbstractResolver):
