@@ -4,6 +4,34 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-11-10
+
+### Security
+
+- A URL is only downloaded from a public address. Addresses of the local network, of the Home Assistant host and its app network, link-local, reserved and multicast addresses are refused before any request goes out, also after a redirect (each of at most three is checked) and when a host name resolves to such an address (checked on the very addresses the connection uses). Home Assistant downloads a URL itself, so anyone allowed to play one could otherwise reach devices of the local network through it, including devices that switch on a plain GET request. The same applies to a media source item that points outside Home Assistant.
+- Only administrators may play a URL; automations and scripts still may. Text to speech and media sources stay open to every user.
+- An error message about a download no longer names the HTTP status, the kind of network error or the address; the details are only logged at debug level.
+- If a password is stored and the device at the address no longer asks for it, nothing is sent to it: setup waits, a poll makes the entities unavailable at once, and a repair issue explains it. Before, a device that took over the address could receive the announcements without a login.
+
+### Fixed
+
+- Every poll checks the MAC of the device at the address. After an address change the integration no longer reads from or writes to another display; the entities become unavailable at once and a repair issue says so. Removing the entry deletes clips only on the configured display.
+- Screen settings changed at the same time (for example by a scene) no longer overwrite each other: they are written one after another.
+- If going back to the previous volume after an announcement fails, the volume is kept and tried again after five seconds and before the next clip. The announcement volume could become the music volume for good.
+- `media_player.media_stop` no longer stops the display's own music while no clip of this integration plays.
+- A rejected password while changing a switch, number or button starts re-authentication at once, not with the next poll.
+- Unexpected answers of the display (library entries or a clip length of another shape) no longer fail a poll or an announcement.
+- The length of damaged audio is estimated instead of failing the announcement.
+- A firmware update shows on the device page and in the repair issue without a reload.
+- Adding a display that is set up already by hand also stores the password just checked, not only the address.
+- An upload or deletion updates the cache sensors with one request a few seconds later instead of a full poll.
+
+### Changed
+
+- Requires Home Assistant 2026.11. Installation through **Settings → Marketplace**.
+- README rewritten for Home Assistant 2026.11 with diagrams of the design, an announcement and the availability, and a section on what may be played from where.
+- Tests run on `pytest-homeassistant` 2026.11.1. `scripts/check.sh` runs the CI checks locally.
+
 ## [0.1.9] - 2026-11-02
 
 ### Fixed
