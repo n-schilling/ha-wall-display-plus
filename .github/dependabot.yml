@@ -14,3 +14,8 @@ updates:
     groups:
       python:
         patterns: ["*"]
+    ignore:
+      # Pinned to what the Home Assistant release of the test harness pins;
+      # they move with pytest-homeassistant, not on their own
+      - dependency-name: mutagen
+      - dependency-name: ha-ffmpeg

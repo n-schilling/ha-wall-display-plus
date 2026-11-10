@@ -1,4 +1,4 @@
-# Integration quality scale, checked against the rules of Home Assistant 2026.10.
+# Integration quality scale, checked against the rules of Home Assistant 2026.11.
 # hassfest only validates this file for core integrations; it documents the
 # state of this custom integration rule by rule.
 rules:

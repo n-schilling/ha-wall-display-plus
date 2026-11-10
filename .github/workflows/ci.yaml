@@ -1,4 +1,5 @@
 name: CI
+# scripts/check.sh runs the same checks locally; keep the two in step.
 
 on:
   push:
@@ -45,6 +46,11 @@ jobs:
   hacs:
     name: HACS
     runs-on: ubuntu-latest
+    # Validates the repository for the Marketplace (hacs.json, manifest, info),
+    # with the HACS action the Marketplace grew out of. It validates public
+    # repositories only; compared with false on purpose: an event without a
+    # repository object (a scheduled run) must skip it as well
+    if: ${{ github.event.repository.private == false }}
     steps:
       - uses: hacs/action@d556e736723344f83838d08488c983a15381059a # 22.5.0
         with:

@@ -2,7 +2,7 @@ name: Release
 
 # After a green CI run on main: tag the version from manifest.json and
 # publish a GitHub release with its CHANGELOG section, unless that tag exists.
-# HACS offers each release as an update.
+# The Marketplace offers each release as an update.
 on:
   workflow_run:
     workflows: [CI]
