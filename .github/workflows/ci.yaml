@@ -1,9 +1,11 @@
 name: CI
 # scripts/check.sh runs the same checks locally; keep the two in step.
 
+# Not on main: a commit reaches main only after CI passed for it on dev, and
+# the release workflow checks that before it tags (ci-passed.sh)
 on:
   push:
-    branches: [main, dev]
+    branches: [dev]
   pull_request:
   schedule:
     # Weekly, so a new Home Assistant release that breaks hassfest shows up
@@ -67,10 +69,24 @@ jobs:
         with:
           persist-credentials: false
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        id: python
         with:
           python-version: "3.14"
+      # The whole virtual environment, by the exact Python version and the
+      # requirements: on a hit nothing is installed. No pip cache besides: its
+      # key changes with the same inputs, so it would only cost time to restore
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        id: venv
+        with:
+          path: .venv
+          key: venv-test-${{ runner.os }}-${{ runner.arch }}-${{ steps.python.outputs.python-version }}-${{ hashFiles('requirements_test.txt') }}
       - name: Install
-        run: pip install -r requirements_test.txt
+        if: steps.venv.outputs.cache-hit != 'true'
+        run: |
+          python -m venv .venv
+          .venv/bin/pip install -r requirements_test.txt
+      - name: Use the virtual environment
+        run: echo "${PWD}/.venv/bin" >> "${GITHUB_PATH}"
       - name: Strict typing
         run: mypy custom_components
       - name: Test
