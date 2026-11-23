@@ -6,7 +6,7 @@ import asyncio
 import base64
 from collections.abc import AsyncGenerator, Generator
 import hashlib
-import secrets
+import json
 from typing import Any
 from unittest.mock import patch
 
@@ -21,15 +21,26 @@ from custom_components.wall_display_plus.api import (
     WallDisplayUnsupportedError,
 )
 
-REALM = "shellywalldisplay-02a1b2c3d4e5"
+REALM = "ShellyWallDisplay-02A1B2C3D4E5"
 
 
 def _sha(text: str) -> str:
     return hashlib.sha256(text.encode()).hexdigest()
 
 
+HA2 = _sha("dummy_method:dummy_uri")
+
+
 class DisplayServer:
-    """A minimal HTTP twin of the display, with optional SHA-256 digest auth."""
+    """A minimal HTTP twin of the display, with an optional password.
+
+    It behaves like firmware 2.8.5 of a Wall Display XL: a request without a
+    valid login gets HTTP 401, a header that announces digest authentication,
+    and the error with what a login is computed with as the whole answer. A
+    login in that header is rejected; only the "auth" object in the request is
+    accepted. Unlike the firmware, the twin also insists on its current nonce,
+    so the tests show that the client picks up a new one.
+    """
 
     def __init__(self) -> None:
         self.password: str | None = None
@@ -46,23 +57,50 @@ class DisplayServer:
         self.list_delays = 0
         # The next requests (RPC or /shelly) fail with this HTTP status or hang
         self.failures: list[int | str] = []
-        self.nonce = secrets.token_hex(8)
+        self.nonce: int | str = 1795469290
+        self.requests = 0  # all requests to /rpc, rejected ones included
+        self.logins: list[dict[str, Any]] = []
+        # What a rejected request is answered with; None is the display's own answer
+        self.rejection: Any = None
 
-    def _authorized(self, request: web.Request) -> bool:
+    def _authorized(self, frame: dict[str, Any]) -> bool:
         if self.password is None:
             return True
-        header = request.headers.get("Authorization", "")
-        if not header.startswith("Digest "):
+        auth = frame.get("auth")
+        if not isinstance(auth, dict):
             return False
-        fields = dict(part.strip().split("=", 1) for part in header[7:].split(",") if "=" in part)
-        fields = {k: v.strip('"') for k, v in fields.items()}
+        self.logins.append(auth)
         ha1 = _sha(f"admin:{REALM}:{self.password}")
-        ha2 = _sha(f"{request.method}:{fields.get('uri')}")
-        expected = _sha(
-            f"{ha1}:{fields.get('nonce')}:{fields.get('nc')}:{fields.get('cnonce')}:"
-            f"{fields.get('qop')}:{ha2}"
+        expected = _sha(f"{ha1}:{self.nonce}:{auth.get('nc')}:{auth.get('cnonce')}:auth:{HA2}")
+        return (
+            auth.get("username") == "admin"
+            and auth.get("realm") == REALM
+            and auth.get("nonce") == self.nonce
+            and auth.get("algorithm") == "SHA-256"
+            and auth.get("response") == expected
         )
-        return fields.get("response") == expected
+
+    def _rejected(self) -> web.Response:
+        headers = {
+            "WWW-Authenticate": (
+                f'Digest realm="{REALM}", qop="auth", nonce="3a952fa3", opaque="", '
+                "algorithm=SHA-256"
+            )
+        }
+        if isinstance(self.rejection, str):
+            return web.Response(status=401, headers=headers, text=self.rejection)
+        asked = self.rejection
+        if asked is None:
+            asked = {
+                "auth_type": "digest",
+                "nonce": self.nonce,
+                "nc": "1",
+                "realm": REALM,
+                "algorithm": "SHA-256",
+            }
+        return web.json_response(
+            {"code": 401, "message": json.dumps(asked)}, status=401, headers=headers
+        )
 
     async def _fail(self) -> web.Response | None:
         if not self.failures:
@@ -83,17 +121,10 @@ class DisplayServer:
         return web.json_response(self.shelly)
 
     async def rpc_handler(self, request: web.Request) -> web.Response:
-        if not self._authorized(request):
-            return web.Response(
-                status=401,
-                headers={
-                    "WWW-Authenticate": (
-                        f'Digest qop="auth", realm="{REALM}", nonce="{self.nonce}", '
-                        "algorithm=SHA-256"
-                    )
-                },
-            )
+        self.requests += 1
         frame = await request.json()
+        if not self._authorized(frame):
+            return self._rejected()
         self.calls.append(frame)
         if (failed := await self._fail()) is not None:
             return failed
@@ -193,7 +224,7 @@ async def test_result_not_a_dict_is_empty(server, session) -> None:
     assert await WallDisplayClient(session, host, None).rpc("X.Y") == {}
 
 
-async def test_digest_auth(server, session) -> None:
+async def test_password(server, session) -> None:
     twin, host = server
     twin.password = "secret"
     twin.answers["Sys.GetConfig"] = {"result": {"ok": True}}
@@ -202,6 +233,73 @@ async def test_digest_auth(server, session) -> None:
         await WallDisplayClient(session, host, "wrong").rpc("Sys.GetConfig")
     with pytest.raises(WallDisplayAuthError):
         await WallDisplayClient(session, host, None).rpc("Sys.GetConfig")
+    assert "secret" not in json.dumps(twin.logins)
+
+
+async def test_password_login_is_kept(server, session) -> None:
+    """The display is asked once what to log in with; later requests log in at once."""
+    twin, host = server
+    twin.password = "secret"
+    client = WallDisplayClient(session, host, "secret")
+    await client.rpc("Sys.GetConfig")
+    assert twin.requests == 2  # rejected, then logged in
+    await client.rpc("Media.GetStatus")
+    await client.rpc("Media.SetVolume", {"volume": 5})
+    assert twin.requests == 4
+    assert [login["nc"] for login in twin.logins] == ["00000001", "00000002", "00000003"]
+    assert len({login["cnonce"] for login in twin.logins}) == 3
+    assert "auth" not in twin.calls[0]["params"]
+
+
+async def test_password_after_display_restart(server, session) -> None:
+    """A display that asks for a login with new values gets one, also for a write."""
+    twin, host = server
+    twin.password = "secret"
+    client = WallDisplayClient(session, host, "secret")
+    await client.rpc("Sys.GetConfig")
+    twin.nonce = "a-new-nonce"
+    await client.play_alert(5)
+    assert [c["method"] for c in twin.calls] == ["Sys.GetConfig", "Media.MediaPlayer.PlayAlert"]
+    assert twin.logins[-1]["nonce"] == "a-new-nonce"
+    assert twin.logins[-1]["nc"] == "00000001"
+
+
+async def test_wrong_password_is_asked_again_later(server, session) -> None:
+    """After a rejected password the client starts over with the next request."""
+    twin, host = server
+    twin.password = "secret"
+    client = WallDisplayClient(session, host, "wrong")
+    with pytest.raises(WallDisplayAuthError):
+        await client.rpc("Sys.GetConfig")
+    assert twin.requests == 2
+    twin.password = "wrong"  # the user set this password on the display
+    assert await client.rpc("Sys.GetConfig") == {}
+
+
+@pytest.mark.parametrize(
+    "rejection",
+    [
+        "",  # no answer text at all
+        "Unauthorized",  # no JSON
+        "[401]",  # JSON of another shape
+        json.dumps({"code": 401, "message": "not json inside"}),
+        ["digest"],
+        {"auth_type": "basic", "realm": REALM, "nonce": 1, "algorithm": "SHA-256"},
+        {"auth_type": "digest", "realm": REALM, "nonce": 1, "algorithm": "MD5"},
+        {"auth_type": "digest", "realm": "", "nonce": 1, "algorithm": "SHA-256"},
+        {"auth_type": "digest", "realm": REALM, "nonce": True, "algorithm": "SHA-256"},
+        {"auth_type": "digest", "realm": REALM, "algorithm": "SHA-256"},
+    ],
+)
+async def test_unknown_login_request_is_an_auth_error(server, session, rejection: Any) -> None:
+    """A rejection the client cannot answer is reported, and nothing is signed."""
+    twin, host = server
+    twin.password = "secret"
+    twin.rejection = rejection
+    with pytest.raises(WallDisplayAuthError):
+        await WallDisplayClient(session, host, "secret").rpc("Sys.GetConfig")
+    assert twin.requests == 1
+    assert twin.logins == []
 
 
 async def test_media_methods(server, session) -> None:

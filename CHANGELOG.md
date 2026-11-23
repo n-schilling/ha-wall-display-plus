@@ -4,6 +4,13 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 
 ## [Unreleased]
 
+## [0.2.2] - 2026-11-23
+
+### Fixed
+
+- A display with a password can be set up and used: the password was always rejected with "The display needs a password, or the password is wrong", in setup, Reconfigure and re-authentication alike ([#8](https://github.com/n-schilling/ha-wall-display-plus/issues/8)). The display announces HTTP digest authentication but rejects it for the requests this integration sends; the login now goes into the request itself, the way the display's own web interface does it. Measured on a Wall Display XL with firmware 2.8.5.
+- A rejected login is logged at debug level with the method that was called.
+
 ## [0.2.1] - 2026-11-23
 
 ### Changed

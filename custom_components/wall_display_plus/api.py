@@ -4,6 +4,11 @@ The media methods used here are not part of the published API documentation.
 They are the calls the display's own web interface makes, read from firmware
 2.8.2. Every call goes through ``rpc`` so a changed firmware fails in one place
 with a clear error.
+
+A display with a password is logged in to the way its web interface does it:
+with an ``auth`` object in the request itself. The display also announces HTTP
+digest authentication in a header, but firmware 2.8.5 rejects it for the POST
+requests used here whatever the password is.
 """
 
 from __future__ import annotations
@@ -12,10 +17,13 @@ import asyncio
 import base64
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
+import hashlib
+import json
 import logging
+import secrets
 from typing import Any
 
-from aiohttp import ClientError, ClientSession, ClientTimeout, DigestAuthMiddleware
+from aiohttp import ClientError, ClientSession, ClientTimeout
 
 from .const import AUTH_USER, SUPPORTED_MODELS, UPLOAD_CHUNK_SIZE
 
@@ -34,6 +42,11 @@ RETRY_PAUSE = 1.0
 # Firmware 2.8.2 answers an unknown method with -114 "Method not found!";
 # 404 is the code of the general Gen2 RPC protocol.
 METHOD_NOT_FOUND = (-114, 404)
+
+UNAUTHORIZED = 401
+# The display signs no method or address into the login: its web interface and
+# the official integration use these fixed words in their place.
+AUTH_HA2 = hashlib.sha256(b"dummy_method:dummy_uri").hexdigest()
 
 
 class WallDisplayError(Exception):
@@ -79,6 +92,14 @@ class DeviceInfo:
 
 
 @dataclass(frozen=True, slots=True)
+class _Challenge:
+    """What the display asks a login to be computed with."""
+
+    realm: str
+    nonce: int | str
+
+
+@dataclass(frozen=True, slots=True)
 class MediaItem:
     """One file in the display's media library."""
 
@@ -102,7 +123,9 @@ class WallDisplayClient:
         """Initialize the client."""
         self._session = session
         self._base = f"http://{host}"
-        self._middlewares = (DigestAuthMiddleware(AUTH_USER, password),) if password else ()
+        self._password = password or None
+        self._challenge: _Challenge | None = None
+        self._nc = 0
         self._id = 0
 
     async def get_device_info(self) -> DeviceInfo:
@@ -144,8 +167,6 @@ class WallDisplayClient:
         attempts = READ_ATTEMPTS if _reads(method) else 1
         try:
             answer = await _retrying(lambda: self._post(frame, client_timeout), attempts)
-        except WallDisplayError:
-            raise
         except (ClientError, TimeoutError, ValueError) as err:
             raise WallDisplayError(f"{method} failed: {_describe(err)}") from err
         if not isinstance(answer, dict):
@@ -153,7 +174,8 @@ class WallDisplayClient:
         if "error" in answer:
             error = answer["error"]
             code = error.get("code") if isinstance(error, dict) else None
-            if code == 401:
+            if code == UNAUTHORIZED:
+                _LOGGER.debug("The display rejected the login for %s", method)
                 raise WallDisplayAuthError("The display rejected the password")
             if code in METHOD_NOT_FOUND:
                 raise WallDisplayUnsupportedError(f"{method}: {error}")
@@ -167,16 +189,59 @@ class WallDisplayClient:
             return await resp.json(content_type=None)
 
     async def _post(self, frame: dict[str, Any], client_timeout: ClientTimeout) -> Any:
+        """Send a request; log in and send it once more if the display asks for it.
+
+        A rejected request was not carried out, so sending it again is safe
+        for a write too. The display's answer to a request without a valid
+        login holds what the next login is computed with; it is kept for the
+        requests that follow.
+        """
+        answer = await self._post_once(self._signed(frame), client_timeout)
+        if self._password is None or (challenge := _challenge(answer)) is None:
+            return answer
+        self._challenge = challenge
+        self._nc = 0
+        answer = await self._post_once(self._signed(frame), client_timeout)
+        if _challenge(answer) is not None:
+            self._challenge = None  # the password is wrong
+        return answer
+
+    async def _post_once(self, frame: dict[str, Any], client_timeout: ClientTimeout) -> Any:
         async with self._session.post(
-            f"{self._base}/rpc",
-            json=frame,
-            timeout=client_timeout,
-            middlewares=self._middlewares,
+            f"{self._base}/rpc", json=frame, timeout=client_timeout
         ) as resp:
-            if resp.status == 401:
-                raise WallDisplayAuthError("The display rejected the password")
+            if resp.status == UNAUTHORIZED:
+                # Over HTTP the error is the whole answer, not a part of it
+                try:
+                    error = await resp.json(content_type=None)
+                except ValueError:
+                    error = None
+                details = error if isinstance(error, dict) else {}
+                return {"error": {**details, "code": UNAUTHORIZED}}
             resp.raise_for_status()
             return await resp.json(content_type=None)
+
+    def _signed(self, frame: dict[str, Any]) -> dict[str, Any]:
+        """Return the request with the login, once the display asked for one."""
+        if self._challenge is None:
+            return frame
+        self._nc += 1
+        count = f"{self._nc:08x}"
+        cnonce = secrets.randbits(48)
+        realm, nonce = self._challenge.realm, self._challenge.nonce
+        ha1 = _sha256(f"{AUTH_USER}:{realm}:{self._password}")
+        return {
+            **frame,
+            "auth": {
+                "username": AUTH_USER,
+                "realm": realm,
+                "nonce": nonce,
+                "cnonce": cnonce,
+                "nc": count,
+                "algorithm": "SHA-256",
+                "response": _sha256(f"{ha1}:{nonce}:{count}:{cnonce}:auth:{AUTH_HA2}"),
+            },
+        }
 
     async def list_media(self) -> list[MediaItem]:
         """Return all files in the media library; entries it cannot read are left out."""
@@ -290,6 +355,38 @@ async def _retrying[T](request: Callable[[], Awaitable[T]], attempts: int) -> T:
             _LOGGER.debug("No answer from the display, asking once more: %s", _describe(err))
         await asyncio.sleep(RETRY_PAUSE)
     return await request()
+
+
+def _challenge(answer: Any) -> _Challenge | None:
+    """Read what a login is computed with from an answer that asks for one.
+
+    The display puts it into the error message as JSON text. None if the
+    answer is no such request or names a login this client does not know.
+    """
+    error = answer.get("error") if isinstance(answer, dict) else None
+    if not isinstance(error, dict) or error.get("code") != UNAUTHORIZED:
+        return None
+    message = error.get("message")
+    try:
+        asked = json.loads(message) if isinstance(message, str) else None
+    except ValueError:
+        return None
+    if (
+        not isinstance(asked, dict)
+        or asked.get("auth_type") != "digest"
+        or asked.get("algorithm") != "SHA-256"
+    ):
+        return None
+    realm, nonce = asked.get("realm"), asked.get("nonce")
+    if not isinstance(realm, str) or not realm:
+        return None
+    if not isinstance(nonce, int | str) or isinstance(nonce, bool):
+        return None
+    return _Challenge(realm=realm, nonce=nonce)
+
+
+def _sha256(text: str) -> str:
+    return hashlib.sha256(text.encode()).hexdigest()
 
 
 def _reads(method: str) -> bool:

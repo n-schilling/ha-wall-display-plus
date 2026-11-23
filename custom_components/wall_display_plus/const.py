@@ -41,7 +41,7 @@ SUPPORTED_MODELS: Final = frozenset({"SAWD-3A1XE10EU2"})
 # An upload must leave at least this much storage free on the display.
 FREE_SPACE_RESERVE: Final = 100 * 1024 * 1024
 
-# The display only accepts the user name "admin" for digest authentication.
+# The display only accepts the user name "admin" for its login.
 AUTH_USER: Final = "admin"
 
 # Polling is rare on purpose: the display is weak, and everything the

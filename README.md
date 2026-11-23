@@ -169,7 +169,7 @@ Only the Wall Display XL is offered: it has the speaker and the motion sensor th
 
 - **Clips stay on the display** until they were not played for the configured time or the cache needs room. They are audio files in the display's media library.
 - **Set a password on the display, and give it a fixed address** (DHCP reservation in your router). Without a password, any device on your network can list the media library. The MAC that discovery and every poll check can be read without a login, so a device that pretends to be the display could take over its address; with a password, the integration also notices when a device at the address no longer asks for it. The file names show that a clip comes from Home Assistant, but not which text it holds.
-- **The password** is sent with HTTP digest authentication, the only login the display offers. A device that intercepts it could try to guess the password offline, so choose a long one.
+- **The password** itself is never sent: every request carries a SHA-256 digest computed from it, the only login the display offers. A device that reads a request could try to guess the password offline, so choose a long one.
 - **For sensitive texts use `extra: {cache: false}`:** the clip is deleted right after it was played.
 - **The connection to the display is plain HTTP** (the display offers nothing else). Announcements travel unencrypted through your local network.
 - **Diagnostics hold nothing personal:** no password, address or MAC, no cache keys, file names or play times, nothing about what the display played. Error messages leave out user, password and query part of URLs.
@@ -362,7 +362,7 @@ Manual brightness and automatic brightness are left out on purpose: while automa
 | Parameter | Description |
 |---|---|
 | Host | IP address or host name of the display. Discovered displays fill it in themselves. A new address is picked up automatically only for displays without a password, and only if the device at the new address reports the same MAC; with a password, use **Reconfigure**. |
-| Password | Only if a password is set on the display (user `admin`, digest authentication). Leave empty otherwise. |
+| Password | Only if a password is set on the display (web interface: Settings, Authentication). Leave empty otherwise. |
 
 The address and the password can be changed later with **Reconfigure**. If the display rejects the password, Home Assistant asks for the new one. Adding a display that is set up already by hand takes over the new address and password.
 
@@ -386,7 +386,7 @@ scripts/check.sh
 
 `scripts/check.sh` runs what CI runs: ruff, the changelog and translation checks, mypy, the tests with their coverage threshold and hassfest in Docker. The CI job HACS, which validates the repository for the Marketplace, runs on GitHub only.
 
-The tests run against a display simulated in memory (`tests/conftest.py`) and, for the RPC client, against a local HTTP twin with digest authentication (`tests/test_api.py`). The rules of the Home Assistant integration quality scale are tracked in [`quality_scale.yaml`](custom_components/wall_display_plus/quality_scale.yaml).
+The tests run against a display simulated in memory (`tests/conftest.py`) and, for the RPC client, against a local HTTP twin that asks for the password like firmware 2.8.5 does (`tests/test_api.py`). The rules of the Home Assistant integration quality scale are tracked in [`quality_scale.yaml`](custom_components/wall_display_plus/quality_scale.yaml).
 
 Releases: CI runs on `dev`; once it is green, push that commit to `main`. CI does not run again there: the release workflow checks that CI passed for the commit, then tags the version from `manifest.json` and publishes a GitHub release with its CHANGELOG section; the Marketplace offers it as an update.
 
