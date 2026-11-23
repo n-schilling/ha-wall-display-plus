@@ -77,6 +77,49 @@ async def test_own_device_next_to_existing_one(
     assert unchanged.config_entry_id == other.entry_id
 
 
+async def test_display_without_motion_sensor(
+    hass: HomeAssistant, display: FakeDisplay, config_entry: MockConfigEntry
+) -> None:
+    """A Wall Display has no motion sensor: no switch for it, and it is asked once."""
+    display.app = "WallDisplay"
+    display.model = "SAWD-0A1XX10EU1"
+    display.has_motion = False
+    config_entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(config_entry.entry_id)
+    await hass.async_block_till_done()
+
+    registry = er.async_get(hass)
+    unique_ids = {
+        entry.unique_id
+        for entry in er.async_entries_for_config_entry(registry, config_entry.entry_id)
+    }
+    assert f"{MAC}_motion_wakes_screen" not in unique_ids
+    assert {f"{MAC}_speaker", f"{MAC}_dim_screen", f"{MAC}_screen_saver"} <= unique_ids
+
+    coordinator = config_entry.runtime_data.coordinator
+    assert coordinator.data.wake_screen is None
+    await coordinator.async_refresh()
+    assert coordinator.last_update_success
+    assert display.motion_reads == 1
+
+    diagnostics = await async_get_config_entry_diagnostics(hass, config_entry)
+    assert diagnostics["device"]["model"] == "SAWD-0A1XX10EU1"
+    assert coordinator.has_motion is False
+
+
+async def test_motion_sensor_is_decided_once(
+    hass: HomeAssistant, display: FakeDisplay, setup_entry: MockConfigEntry
+) -> None:
+    """A display with a motion sensor keeps its switch if it later denies having one."""
+    coordinator = setup_entry.runtime_data.coordinator
+    assert coordinator.has_motion is True
+    display.has_motion = False
+    await coordinator.async_refresh()
+    assert coordinator.has_motion is True
+    assert coordinator.data.wake_screen is True  # the failed poll keeps the last values
+    assert hass.states.get(_entity_id(hass, SWITCH_DOMAIN, "motion_wakes_screen")).state == STATE_ON
+
+
 async def test_switch_writes_only_on_change(
     hass: HomeAssistant, display: FakeDisplay, setup_entry: MockConfigEntry
 ) -> None:

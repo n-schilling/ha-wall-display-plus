@@ -4,6 +4,16 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-11-23
+
+### Added
+
+- The Wall Display (SAWD-0A1XX10EU1) is supported next to the Wall Display XL ([#6](https://github.com/n-schilling/ha-wall-display-plus/issues/6)). It has no motion sensor, so it gets every entity except the switch "Motion wakes screen". Measured with firmware 2.8.5: an announcement clip plays, and the password works.
+
+### Fixed
+
+- The CPU temperature sensor also reads the value of a Wall Display, which reports it under another name.
+
 ## [0.2.2] - 2026-11-23
 
 ### Fixed

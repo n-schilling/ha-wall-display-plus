@@ -39,9 +39,14 @@ UPLOAD_TIMEOUT = ClientTimeout(total=60)
 READ_ATTEMPTS = 2
 RETRY_PAUSE = 1.0
 
-# Firmware 2.8.2 answers an unknown method with -114 "Method not found!";
-# 404 is the code of the general Gen2 RPC protocol.
+# Firmware 2.8.2 answers an unknown method with -114 "Method not found!", and
+# a method of a part the display does not have (the motion sensor on a Wall
+# Display) with -114 "No such component"; 404 is the code of the general Gen2
+# RPC protocol.
 METHOD_NOT_FOUND = (-114, 404)
+
+# Where Sys.GetInternalTemperatures reports the CPU: Wall Display XL, Wall Display
+CPU_TEMPERATURE_KEYS = ("thermal-cpufreq-0", "cpu-sysrst")
 
 UNAUTHORIZED = 401
 # The display signs no method or address into the login: its web interface and
@@ -87,7 +92,7 @@ class DeviceInfo:
 
     @property
     def is_supported(self) -> bool:
-        """Return whether this is a model the integration supports (Wall Display XL)."""
+        """Return whether this is a model the integration supports."""
         return self.model in SUPPORTED_MODELS
 
 
@@ -321,8 +326,11 @@ class WallDisplayClient:
     async def get_cpu_temperature(self) -> float | None:
         """Return the CPU temperature in °C, None if not reported."""
         result = await self.rpc("Sys.GetInternalTemperatures")
-        value = result.get("thermal-cpufreq-0")
-        return float(value) if isinstance(value, int | float) else None
+        for key in CPU_TEMPERATURE_KEYS:
+            value = result.get(key)
+            if isinstance(value, int | float):
+                return float(value)
+        return None
 
     async def set_volume(self, level: int) -> None:
         """Set the media volume (0-10)."""
@@ -333,7 +341,10 @@ class WallDisplayClient:
         await self.rpc("Sys.RestartApplication")
 
     async def get_motion_config(self) -> dict[str, Any]:
-        """Return the motion sensor configuration."""
+        """Return the motion sensor configuration.
+
+        A display without a motion sensor raises WallDisplayUnsupportedError.
+        """
         return await self.rpc("Motion.GetConfig", {"id": 0})
 
     async def set_wake_screen(self, enabled: bool) -> None:

@@ -37,18 +37,21 @@ async def async_setup_entry(
     async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
     """Set up the switches."""
-    async_add_entities(
-        [MotionWakesScreenSwitch(entry)]
-        + [ScreenSwitch(entry, description) for description in SCREEN_SWITCHES]
-    )
+    entities: list[SwitchEntity] = [
+        ScreenSwitch(entry, description) for description in SCREEN_SWITCHES
+    ]
+    if entry.runtime_data.coordinator.has_motion:
+        entities.append(MotionWakesScreenSwitch(entry))
+    async_add_entities(entities)
 
 
 class MotionWakesScreenSwitch(WallDisplayEntity, SwitchEntity):
     """Whether motion in front of the display wakes the screen.
 
-    Touch always wakes it. The value is written only when it really changes:
-    every write makes the official integration for the display reload, and
-    its entities are unavailable for a moment.
+    Only for a display with a motion sensor. Touch always wakes it. The value
+    is written only when it really changes: every write makes the official
+    integration for the display reload, and its entities are unavailable for
+    a moment.
     """
 
     _attr_entity_category = EntityCategory.CONFIG

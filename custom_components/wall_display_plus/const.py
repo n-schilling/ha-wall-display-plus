@@ -32,11 +32,12 @@ MAX_MAX_TEXT_LENGTH: Final = 5000
 # the user changes the "Announcement volume" entity.
 DEFAULT_ANNOUNCEMENT_VOLUME: Final = 7
 
-# Only these models are offered and set up: the Wall Display XL has the
-# speaker and the motion sensor this integration is about. The firmware does
-# not report whether a display has a speaker, so the list is explicit; other
-# models are added once someone confirms they work.
-SUPPORTED_MODELS: Final = frozenset({"SAWD-3A1XE10EU2"})
+# Only these models are offered and set up: the Wall Display XL and the Wall
+# Display, both with a speaker. The firmware does not report whether a display
+# has one, so the list is explicit; other models are added once someone
+# confirms they work. What else a model has (the motion sensor of the XL) is
+# asked from the display, not listed here.
+SUPPORTED_MODELS: Final = frozenset({"SAWD-3A1XE10EU2", "SAWD-0A1XX10EU1"})
 
 # An upload must leave at least this much storage free on the display.
 FREE_SPACE_RESERVE: Final = 100 * 1024 * 1024

@@ -2,7 +2,7 @@
 
 [![Marketplace: custom](https://img.shields.io/badge/Marketplace-custom-41BDF5.svg)](#installation)
 
-A Home Assistant integration that turns the built-in speaker of a Shelly Wall Display XL into a media player: `tts.speak`, announcements and audio files play on the display. It also adds the display's screen settings (motion wakes the screen, dimming, screen off, screen saver), a button that restarts the display app and diagnostic sensors. It complements the official integration for the display, it does not replace it: that integration's media player only plays files already in the display's media library, so `tts.speak` and audio URLs fail there with "Unsupported media ID". This project is not affiliated with or endorsed by Shelly.
+A Home Assistant integration that turns the built-in speaker of a Shelly Wall Display XL or Wall Display into a media player: `tts.speak`, announcements and audio files play on the display. It also adds the display's screen settings (motion wakes the screen, dimming, screen off, screen saver), a button that restarts the display app and diagnostic sensors. It complements the official integration for the display, it does not replace it: that integration's media player only plays files already in the display's media library, so `tts.speak` and audio URLs fail there with "Unsupported media ID". This project is not affiliated with or endorsed by Shelly.
 
 What it is for, for example:
 
@@ -152,10 +152,11 @@ To keep the host from long work by mistake, texts are limited to 500 characters 
 
 | Device | Status |
 |---|---|
-| Wall Display XL (SAWD-3A1XE10EU2), firmware 2.8.2 and 2.8.4 | Supported and tested |
-| Other wall displays (for example SAWD-0A1XX10EU1) | Not offered and refused during setup |
+| Wall Display XL (SAWD-3A1XE10EU2), firmware 2.8.2, 2.8.4 and 2.8.5 | Supported and tested in daily use |
+| Wall Display (SAWD-0A1XX10EU1), firmware 2.8.5 | Supported. Tested: setup values, an announcement clip, the password. Not yet in daily use. It has no motion sensor, so the switch "Motion wakes screen" is missing. |
+| Other wall displays | Not offered and refused during setup |
 
-Only the Wall Display XL is offered: it has the speaker and the motion sensor this integration is about. The firmware of other wall displays offers the same media interface but does not report whether a speaker is built in, so the integration recognizes the XL by its model. If you have another model with a speaker that should be supported, please open an [issue](https://github.com/n-schilling/ha-wall-display-plus/issues) with its model name.
+The firmware offers the same media interface on every wall display but does not report whether a speaker is built in, so the integration recognizes the supported displays by their model. Whether a display has a motion sensor is asked from the display. If you have another model with a speaker that should be supported, please open an [issue](https://github.com/n-schilling/ha-wall-display-plus/issues) with its model name.
 
 ### What may be played from where
 
@@ -301,7 +302,7 @@ With several displays, a display at 0 % is left out and the others play.
 | Problem | What to do |
 |---|---|
 | Nothing to hear | Press **Test announcement volume**. If it is too quiet, raise **Announcement volume** (at 0 % nothing plays; check a night-mode automation); also check that no Bluetooth speaker is connected to the display instead. |
-| "This device is not a Wall Display XL" | Only the Wall Display XL (SAWD-3A1XE10EU2) is supported; see [Supported devices](#supported-devices). |
+| "This device is not a supported wall display" | Only the Wall Display XL (SAWD-3A1XE10EU2) and the Wall Display (SAWD-0A1XX10EU1) are supported; see [Supported devices](#supported-devices). |
 | "Reconfigure" on a speaker group | A group has no connection settings; change its speakers with **Configure**. |
 | Repair issue "the firmware does not support the speaker" | The firmware changed the interface. [Open an issue](https://github.com/n-schilling/ha-wall-display-plus/issues/new/choose) with model and firmware. The issue disappears once a clip plays again. |
 | Entities unavailable | The display is off or has a new address. Without a password, discovery picks up the new address; with a password, use **Reconfigure**. |
@@ -324,7 +325,7 @@ In Home Assistant a device belongs to a single integration, so the entities get 
 |---|---|
 | Speaker (`media_player`) | Plays text to speech, media sources and audio URLs as announcements. Supports `tts.speak`, `media_player.play_media` (with `announce`), stop and media browsing (audio only). |
 | Speaker group (`media_player`, experimental) | Plays on all its member speakers at the same time; see [Several displays](#several-displays-experimental). Attribute `entity_id` lists the members. |
-| Motion wakes screen (`switch`, configuration) | Whether motion in front of the display wakes the screen. Touch always does. |
+| Motion wakes screen (`switch`, configuration) | Whether motion in front of the display wakes the screen. Touch always does. Only on a display with a motion sensor (Wall Display XL). |
 | Dim screen when idle, Turn screen off when idle, Screen saver (`switch`, configuration) | The display's own screen settings. |
 | Announcement volume (`number`, configuration) | Volume of announcements that bring no volume of their own, 70 % by default, in steps of 10 %. Applies to `tts.speak` as well. The display goes back to its previous volume after each announcement, so music keeps its own volume. Can be changed from automations, for example quieter at night; see [Night mode](#night-mode). At 0 % such announcements are skipped: no text to speech, no upload, and the next announcement does not wait. |
 | Minimum brightness, Dim after, Screen off after, Screen saver after (`number`, configuration) | Minimum brightness in %, timeouts 10–3600 s. |

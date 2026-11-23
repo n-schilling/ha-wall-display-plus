@@ -24,6 +24,7 @@ from custom_components.wall_display_plus.api import (
     PlaybackResult,
     WallDisplayAuthError,
     WallDisplayError,
+    WallDisplayUnsupportedError,
 )
 from custom_components.wall_display_plus.const import DOMAIN
 
@@ -59,6 +60,9 @@ class FakeDisplay:
         self.list_calls = 0
         self.cpu_calls = 0
         self.deleted: list[int] = []
+        # A Wall Display (SAWD-0A1XX10EU1) has no motion sensor
+        self.has_motion = True
+        self.motion_reads = 0
         self.wake_screen = True
         self.motion_writes = 0
         self.clip_duration = 0.05
@@ -204,6 +208,11 @@ class FakeDisplay:
 
     async def get_motion_config(self) -> dict[str, Any]:
         self._check_auth()
+        self.motion_reads += 1
+        if not self.has_motion:
+            raise WallDisplayUnsupportedError(
+                "Motion.GetConfig: {'code': -114, 'message': 'No such component'}"
+            )
         return {"enable": True, "wake_screen": self.wake_screen}
 
     async def set_wake_screen(self, enabled: bool) -> None:

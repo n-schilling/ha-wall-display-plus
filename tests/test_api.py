@@ -396,6 +396,11 @@ async def test_screen_volume_restart_temperature(server, session) -> None:
     await client.set_volume(8)
     await client.restart_app()
     assert await client.get_cpu_temperature() == 44.375
+    # A Wall Display reports it under another name
+    twin.answers["Sys.GetInternalTemperatures"] = {
+        "result": {"sht3x": 27.5, "cpu-sysrst": 37.5, "pmic-sysrst": 38.088}
+    }
+    assert await client.get_cpu_temperature() == 37.5
     twin.answers["Sys.GetInternalTemperatures"] = {"result": {"sht3x": -275.15}}
     assert await client.get_cpu_temperature() is None
     methods = [(c["method"], c["params"]) for c in twin.calls]

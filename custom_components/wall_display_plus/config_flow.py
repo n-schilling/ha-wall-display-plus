@@ -63,7 +63,7 @@ class CannotConnect(Exception):
 
 
 class NotSupported(Exception):
-    """The device answered, but is no supported model (Wall Display XL)."""
+    """The device answered, but is no supported model."""
 
 
 class InvalidAuth(Exception):

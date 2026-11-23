@@ -16,7 +16,13 @@ from homeassistant.helpers import device_registry as dr, entity_registry as er, 
 from homeassistant.helpers.debounce import Debouncer
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
-from .api import DeviceInfo, WallDisplayAuthError, WallDisplayClient, WallDisplayError
+from .api import (
+    DeviceInfo,
+    WallDisplayAuthError,
+    WallDisplayClient,
+    WallDisplayError,
+    WallDisplayUnsupportedError,
+)
 from .const import (
     CONF_TYPE,
     DOMAIN,
@@ -136,6 +142,10 @@ class WallDisplayCoordinator(DataUpdateCoordinator[DisplayState]):
         )
         self.client = client
         self.speaker = speaker
+        # Whether the display has a motion sensor (the Wall Display XL has one,
+        # the Wall Display has none). The first poll finds out, later polls
+        # never change it: None until then
+        self.has_motion: bool | None = None
         self._failures = 0
         # Screen settings are written as whole sections: one write at a time
         self._ui_lock = asyncio.Lock()
@@ -198,7 +208,7 @@ class WallDisplayCoordinator(DataUpdateCoordinator[DisplayState]):
         try:
             device = await self.client.get_device_info()
             check_device(self.config_entry, device)
-            motion = await self.client.get_motion_config()
+            motion = await self._async_motion_config()
             media = await self.client.get_media_status()
             ui_config = await self.client.get_ui_config()
             ours = [i for i in await self.client.list_media() if owns(i.filename, self.speaker.tag)]
@@ -217,6 +227,26 @@ class WallDisplayCoordinator(DataUpdateCoordinator[DisplayState]):
             cache_clips=len(ours),
             cache_bytes=sum(i.size for i in ours),
         )
+
+    async def _async_motion_config(self) -> dict[str, Any]:
+        """Read the motion sensor's configuration; a display without one is asked once.
+
+        Only the first poll decides whether there is a sensor. If a display
+        that has one later answers that it has none, the poll fails like any
+        other and the switch keeps its value.
+        """
+        if self.has_motion is False:
+            return {}
+        try:
+            config = await self.client.get_motion_config()
+        except WallDisplayUnsupportedError:
+            if self.has_motion:
+                raise
+            _LOGGER.debug("The display has no motion sensor")
+            self.has_motion = False
+            return {}
+        self.has_motion = True
+        return config
 
     async def _async_cpu_temperature(self) -> float | None:
         """Read the CPU temperature, only for an enabled sensor; failing is no error.

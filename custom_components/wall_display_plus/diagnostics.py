@@ -51,6 +51,7 @@ async def async_get_config_entry_diagnostics(
     if data is not None:
         playback = data.media_status.get("playback") or {}
         state = {
+            "has_motion": runtime.coordinator.has_motion,
             "wake_screen": data.wake_screen,
             "playback": {k: playback[k] for k in PLAYBACK_FIELDS if k in playback},
             "item_counts": data.media_status.get("item_counts"),
