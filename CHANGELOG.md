@@ -4,6 +4,12 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-11-23
+
+### Changed
+
+- The repository passes the HACS validation without a skipped check: the brand images in the integration's `brand` folder are enough. Nothing changes in the integration itself.
+
 ## [0.2.0] - 2026-11-10
 
 ### Security
