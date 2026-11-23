@@ -56,9 +56,8 @@ jobs:
     steps:
       - uses: hacs/action@d556e736723344f83838d08488c983a15381059a # 22.5.0
         with:
+          # No ignored checks: the Marketplace catalog accepts none
           category: integration
-          # Brand images are not in home-assistant/brands
-          ignore: brands
 
   test:
     name: Tests
