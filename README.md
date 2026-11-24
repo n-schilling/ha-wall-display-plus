@@ -1,6 +1,6 @@
 # Wall Display Plus
 
-[![Marketplace: custom](https://img.shields.io/badge/Marketplace-custom-41BDF5.svg)](#installation)
+[![Marketplace: default](https://img.shields.io/badge/Marketplace-default-41BDF5.svg)](#installation)
 
 A Home Assistant integration that turns the built-in speaker of a Shelly Wall Display XL or Wall Display into a media player: `tts.speak`, announcements and audio files play on the display. It also adds the display's screen settings (motion wakes the screen, dimming, screen off, screen saver), a button that restarts the display app and diagnostic sensors. It complements the official integration for the display, it does not replace it: that integration's media player only plays files already in the display's media library, so `tts.speak` and audio URLs fail there with "Unsupported media ID". This project is not affiliated with or endorsed by Shelly.
 
@@ -356,9 +356,35 @@ Manual brightness and automatic brightness are left out on purpose: while automa
 
 ## Installation
 
-1. **Settings → Marketplace → Add from link** (top right), enter `https://github.com/n-schilling/ha-wall-display-plus` as GitHub link and add it. Adding a repository by link asks you to connect GitHub once.
-2. Install **Wall Display Plus** in the Marketplace and restart Home Assistant.
-3. Displays on the network are discovered and shown under **Settings → Devices & services**; confirm one. Or add one by hand: **Add integration → Wall Display Plus**.
+Wall Display Plus is part of the official catalog of the [Home Assistant Marketplace](https://www.home-assistant.io/integrations/marketplace/): you find it there by its name, with nothing to add first. There are three ways to install it, and each one is complete in itself. All need Home Assistant 2026.11 or later, and a text-to-speech engine for announcements (see [Text-to-speech engine](#text-to-speech-engine)); there are no requirements outside Home Assistant.
+
+### Easy installation
+
+Through the search in the Marketplace, the way for almost everyone.
+
+1. Open **Settings → Marketplace** and search for **Wall Display Plus**.
+2. Install it and restart Home Assistant.
+3. Displays on the network are discovered and shown under **Settings → Devices & services**; confirm one. Or add one by hand: **Add integration → Wall Display Plus**. What it asks for is listed under [Installation parameters](#installation-parameters).
+
+### Alternative installation
+
+By the link of the repository, if the search does not show Wall Display Plus.
+
+1. Open **Settings → Marketplace → Add from link** (top right), enter `https://github.com/n-schilling/ha-wall-display-plus` as GitHub link and add it. This asks you to connect GitHub once.
+2. Install **Wall Display Plus** and restart Home Assistant.
+3. Displays on the network are discovered and shown under **Settings → Devices & services**; confirm one. Or add one by hand: **Add integration → Wall Display Plus**. What it asks for is listed under [Installation parameters](#installation-parameters).
+
+### Fully manual installation
+
+Without the Marketplace, by copying the files yourself. Home Assistant then does not tell you about new versions: to update, repeat steps 1 to 4 with the newer release.
+
+1. Open the [latest release](https://github.com/n-schilling/ha-wall-display-plus/releases/latest) and download **Source code (zip)**.
+2. Unpack it. Inside is the folder `custom_components/wall_display_plus`.
+3. Copy the folder `wall_display_plus` into the `custom_components` folder of your configuration directory, the one that holds `configuration.yaml`, so that it ends up as `custom_components/wall_display_plus`. Create `custom_components` if it does not exist yet.
+4. Restart Home Assistant.
+5. Displays on the network are discovered and shown under **Settings → Devices & services**; confirm one. Or add one by hand: **Add integration → Wall Display Plus**. What it asks for is listed under [Installation parameters](#installation-parameters).
+
+### Installation parameters
 
 | Parameter | Description |
 |---|---|
@@ -367,12 +393,10 @@ Manual brightness and automatic brightness are left out on purpose: while automa
 
 The address and the password can be changed later with **Reconfigure**. If the display rejects the password, Home Assistant asks for the new one. Adding a display that is set up already by hand takes over the new address and password.
 
-Requires Home Assistant 2026.11 or later, and a text-to-speech engine for announcements (see [Text-to-speech engine](#text-to-speech-engine)). Without the Marketplace, copy `custom_components/wall_display_plus` into the `custom_components` folder of your configuration directory and restart. There are no requirements outside Home Assistant.
-
 ### Removal
 
 1. **Settings → Devices & services → Wall Display Plus → ⋮ → Delete**. The integration deletes its clips from the display on the way, if the display at the address is the one set up.
-2. Remove the integration in the Marketplace and restart Home Assistant.
+2. Remove the integration in the Marketplace and restart Home Assistant. After a fully manual installation, delete the folder `custom_components/wall_display_plus` instead and restart.
 
 If the display was not reachable during the removal, its clips stay there. Delete the files starting with the *File prefix* of the *Cached clips* sensor (`homeassistant_<tag>_`) in the display's web interface.
 
