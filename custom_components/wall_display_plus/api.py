@@ -179,8 +179,8 @@ class WallDisplayClient:
         if "error" in answer:
             error = answer["error"]
             code = error.get("code") if isinstance(error, dict) else None
+            _LOGGER.debug("%s answered with error %s", method, code)
             if code == UNAUTHORIZED:
-                _LOGGER.debug("The display rejected the login for %s", method)
                 raise WallDisplayAuthError("The display rejected the password")
             if code in METHOD_NOT_FOUND:
                 raise WallDisplayUnsupportedError(f"{method}: {error}")
@@ -276,6 +276,7 @@ class WallDisplayClient:
                 client_timeout=UPLOAD_TIMEOUT,
             )
         await self.rpc("Media.Reload")
+        _LOGGER.debug("Uploaded a clip as %s: %s bytes in %s chunks", media_type, len(data), count)
 
     async def find_media(self, filename: str, attempts: int = 8) -> MediaItem | None:
         """Find a file by name; right after an upload the list can lag a moment."""
@@ -294,6 +295,7 @@ class WallDisplayClient:
     async def play_alert(self, media_id: int) -> PlaybackResult:
         """Play an alert clip once, without touching the music playlist."""
         result = await self.rpc("Media.MediaPlayer.PlayAlert", {"id": media_id})
+        _LOGGER.debug("PlayAlert %s answered: %s", media_id, result)
         clip = result.get("audio_clip") or result.get("playback")
         meta = clip.get("media_meta") if isinstance(clip, dict) else None
         duration_ms = meta.get("duration") if isinstance(meta, dict) else None
@@ -323,14 +325,15 @@ class WallDisplayClient:
         """
         await self.rpc("Ui.SetConfig", {"config": config})
 
+    async def get_internal_temperatures(self) -> dict[str, Any]:
+        """Return every temperature the display reports, by sensor name."""
+        return await self.rpc("Sys.GetInternalTemperatures")
+
     async def get_cpu_temperature(self) -> float | None:
         """Return the CPU temperature in °C, None if not reported."""
-        result = await self.rpc("Sys.GetInternalTemperatures")
-        for key in CPU_TEMPERATURE_KEYS:
-            value = result.get(key)
-            if isinstance(value, int | float):
-                return float(value)
-        return None
+        result = await self.get_internal_temperatures()
+        key = cpu_temperature_key(result)
+        return None if key is None else float(result[key])
 
     async def set_volume(self, level: int) -> None:
         """Set the media volume (0-10)."""
@@ -338,7 +341,8 @@ class WallDisplayClient:
 
     async def restart_app(self) -> None:
         """Restart the display app (not the whole device)."""
-        await self.rpc("Sys.RestartApplication")
+        result = await self.rpc("Sys.RestartApplication")
+        _LOGGER.debug("RestartApplication answered: %s", result)
 
     async def get_motion_config(self) -> dict[str, Any]:
         """Return the motion sensor configuration.
@@ -422,6 +426,19 @@ def _media_item(entry: Any) -> MediaItem | None:
         filename=filename,
         type=str(entry.get("type", "")),
         size=_int_or_none(entry.get("size")) or 0,
+    )
+
+
+def cpu_temperature_key(temperatures: dict[str, Any]) -> str | None:
+    """Return under which name Sys.GetInternalTemperatures reports the CPU, None if not."""
+    return next(
+        (
+            key
+            for key in CPU_TEMPERATURE_KEYS
+            if isinstance(temperatures.get(key), int | float)
+            and not isinstance(temperatures.get(key), bool)
+        ),
+        None,
     )
 
 

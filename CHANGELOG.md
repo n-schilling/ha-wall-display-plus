@@ -4,6 +4,18 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-11-27
+
+### Added
+
+- The Wall Display X2i (SAWD-5A1XX10EU0) can be set up, as experimental support ([#9](https://github.com/n-schilling/ha-wall-display-plus/issues/9)). It has a speaker and the same firmware as the other displays, but nobody of the project owns one, so nothing is tested yet.
+- The diagnostics show what the display offers: the screen settings this integration uses (never the lock settings), every temperature the display reports with the one read as CPU temperature, and the motion sensor's settings.
+- The debug log shows the display's answers to uploads, to playing a clip and to restarting the app, and every error code it returns. The README explains how to send both for a new model.
+
+### Changed
+
+- A rejected login is logged once, as the error code of the method, no longer in a second line.
+
 ## [0.3.0] - 2026-11-23
 
 ### Added

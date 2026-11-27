@@ -48,7 +48,7 @@ from custom_components.wall_display_plus.audio import audio_duration
 from custom_components.wall_display_plus.const import DOMAIN, UPDATE_INTERVAL
 from custom_components.wall_display_plus.coordinator import device_issue_id
 
-from .conftest import HOST, MAC, FakeDisplay
+from .conftest import HOST, MAC, FakeDisplay, fail as _fail
 
 TTS = "media-source://tts/tts.piper?message=Hallo&language=de_DE"
 PASSWORD = "secret"
@@ -87,13 +87,6 @@ async def _poll(hass: HomeAssistant, freezer: FrozenDateTimeFactory) -> None:
     freezer.tick(UPDATE_INTERVAL + timedelta(seconds=1))
     async_fire_time_changed(hass)
     await hass.async_block_till_done()
-
-
-def _fail(display: FakeDisplay, method: str, error: Exception) -> None:
-    async def failing(*args: Any, **kwargs: Any) -> Any:
-        raise error
-
-    setattr(display, method, failing)
 
 
 # -- screen settings are written one at a time --

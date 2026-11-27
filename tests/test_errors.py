@@ -45,7 +45,7 @@ from custom_components.wall_display_plus.const import (
 from custom_components.wall_display_plus.diagnostics import async_get_config_entry_diagnostics
 from custom_components.wall_display_plus.speaker import clip_filename
 
-from .conftest import MAC, FakeDisplay, own_file
+from .conftest import MAC, FakeDisplay, fail as _fail, own_file
 
 TTS = "media-source://tts/tts.piper?message=Hallo&language=de_DE"
 
@@ -77,13 +77,6 @@ async def _play(hass: HomeAssistant, media_id: str) -> None:
         },
         blocking=True,
     )
-
-
-def _fail(display: FakeDisplay, method: str, error: Exception) -> None:
-    async def failing(*args: Any, **kwargs: Any) -> Any:
-        raise error
-
-    setattr(display, method, failing)
 
 
 # -- setup and polling --

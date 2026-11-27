@@ -19,6 +19,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from custom_components.wall_display_plus.api import (
+    CPU_TEMPERATURE_KEYS,
     DeviceInfo,
     MediaItem,
     PlaybackResult,
@@ -59,6 +60,7 @@ class FakeDisplay:
         self.stops = 0
         self.list_calls = 0
         self.cpu_calls = 0
+        self.temperature_reads = 0
         self.deleted: list[int] = []
         # A Wall Display (SAWD-0A1XX10EU1) has no motion sensor
         self.has_motion = True
@@ -202,6 +204,11 @@ class FakeDisplay:
         self.cpu_calls += 1
         return self.cpu_temperature
 
+    async def get_internal_temperatures(self) -> dict[str, Any]:
+        self._check_auth()
+        self.temperature_reads += 1
+        return {"sht3x": -275.15, CPU_TEMPERATURE_KEYS[0]: self.cpu_temperature}
+
     async def restart_app(self) -> None:
         self._check_auth()
         self.app_restarts += 1
@@ -219,6 +226,15 @@ class FakeDisplay:
         self._check_auth()
         self.wake_screen = enabled
         self.motion_writes += 1
+
+
+def fail(display: FakeDisplay, method: str, error: Exception) -> None:
+    """Let one method of the simulated display raise an error."""
+
+    async def failing(*args: Any, **kwargs: Any) -> Any:
+        raise error
+
+    setattr(display, method, failing)
 
 
 @asynccontextmanager

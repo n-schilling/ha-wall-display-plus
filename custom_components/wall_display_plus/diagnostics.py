@@ -17,12 +17,15 @@ from homeassistant.const import CONF_HOST, CONF_PASSWORD
 from homeassistant.core import HomeAssistant
 from homeassistant.util import dt as dt_util
 
-from .api import WallDisplayError
+from .api import WallDisplayClient, WallDisplayError, cpu_temperature_key
 from .const import CONF_MEMBERS
 from .coordinator import WallDisplayConfigEntry, is_group
 from .speaker import owns, parse_timestamp
 
 PLAYBACK_FIELDS = ("enable", "buffering", "volume", "media_type")
+# Parts of the screen configuration this integration reads and writes; the
+# lock settings stay out.
+SCREEN_FIELDS = ("brightness", "screen_saver")
 
 
 async def async_get_config_entry_diagnostics(
@@ -55,6 +58,7 @@ async def async_get_config_entry_diagnostics(
             "wake_screen": data.wake_screen,
             "playback": {k: playback[k] for k in PLAYBACK_FIELDS if k in playback},
             "item_counts": data.media_status.get("item_counts"),
+            "screen": {k: data.ui_config[k] for k in SCREEN_FIELDS if k in data.ui_config},
         }
 
     now = dt_util.utcnow()
@@ -74,4 +78,23 @@ async def async_get_config_entry_diagnostics(
             "oldest_days": ages[-1] if ages else None,
         },
         "clips_on_display": clips,
+        "capabilities": await _capabilities(runtime.client, runtime.coordinator.has_motion),
     }
+
+
+async def _capabilities(client: WallDisplayClient, has_motion: bool | None) -> dict[str, Any]:
+    """Ask the display what it offers, for models nobody of the project owns."""
+    result: dict[str, Any] = {}
+    try:
+        temperatures = await client.get_internal_temperatures()
+    except WallDisplayError as err:
+        result["temperatures"] = f"unavailable: {type(err).__name__}"
+    else:
+        result["temperatures"] = temperatures
+        result["cpu_temperature_key"] = cpu_temperature_key(temperatures)
+    if has_motion:
+        try:
+            result["motion"] = await client.get_motion_config()
+        except WallDisplayError as err:
+            result["motion"] = f"unavailable: {type(err).__name__}"
+    return result
