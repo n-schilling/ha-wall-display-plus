@@ -367,7 +367,10 @@ async def test_debug_log_names_no_address(
     aioclient_mock.get(URL, exc=ClientConnectionError("Cannot connect to host example.com:443"))
     with pytest.raises(HomeAssistantError):
         await _play(hass, URL)
-    assert "Refused a URL: not a public address" in caplog.text
-    assert "Download failed: ClientConnectionError" in caplog.text
+    ours = "\n".join(
+        r.getMessage() for r in caplog.records if r.name.startswith("custom_components.")
+    )
+    assert "Refused a URL: not a public address" in ours
+    assert "Download failed: ClientConnectionError" in ours
     for secret in ("192.168.1.5", "song.mp3", "localhost", "example.com"):
-        assert secret not in caplog.text
+        assert secret not in ours

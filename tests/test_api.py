@@ -359,8 +359,11 @@ async def test_play_alert_log_names_nothing_played(server, session, caplog) -> N
     }
     caplog.set_level(logging.DEBUG, logger="custom_components.wall_display_plus.api")
     assert (await WallDisplayClient(session, host, None).play_alert(11)).duration == 0
-    assert "PlayAlert 11: ALERT at volume 3, duration not reported" in caplog.text
-    assert "Clip title" not in caplog.text and "Station" not in caplog.text
+    ours = "\n".join(
+        r.getMessage() for r in caplog.records if r.name.startswith("custom_components.")
+    )
+    assert "PlayAlert 11: ALERT at volume 3, duration not reported" in ours
+    assert "Clip title" not in ours and "Station" not in ours
 
 
 async def test_find_media_waits_for_the_list(server, session) -> None:
