@@ -7,6 +7,7 @@ import base64
 from collections.abc import AsyncGenerator, Generator
 import hashlib
 import json
+import logging
 from typing import Any
 from unittest.mock import patch
 
@@ -340,6 +341,26 @@ async def test_play_alert_without_duration(server, session) -> None:
     twin, host = server
     twin.answers["Media.MediaPlayer.PlayAlert"] = {"result": {}}
     assert (await WallDisplayClient(session, host, None).play_alert(1)).duration == 0
+
+
+async def test_play_alert_log_names_nothing_played(server, session, caplog) -> None:
+    """The debug log shows how a clip plays, not what played (answer of an X2i)."""
+    twin, host = server
+    twin.answers["Media.MediaPlayer.PlayAlert"] = {
+        "result": {
+            "audio_clip": {
+                "enable": True,
+                "volume": 3,
+                "media_type": "ALERT",
+                "media_meta": {"title": "Clip title", "artist": "", "thumb": "data:"},
+            },
+            "resume": {"enable": False, "media_type": "RADIO", "media_meta": {"title": "Station"}},
+        }
+    }
+    caplog.set_level(logging.DEBUG, logger="custom_components.wall_display_plus.api")
+    assert (await WallDisplayClient(session, host, None).play_alert(11)).duration == 0
+    assert "PlayAlert 11: ALERT at volume 3, duration not reported" in caplog.text
+    assert "Clip title" not in caplog.text and "Station" not in caplog.text
 
 
 async def test_find_media_waits_for_the_list(server, session) -> None:

@@ -295,13 +295,25 @@ class WallDisplayClient:
     async def play_alert(self, media_id: int) -> PlaybackResult:
         """Play an alert clip once, without touching the music playlist."""
         result = await self.rpc("Media.MediaPlayer.PlayAlert", {"id": media_id})
-        _LOGGER.debug("PlayAlert %s answered: %s", media_id, result)
         clip = result.get("audio_clip") or result.get("playback")
-        meta = clip.get("media_meta") if isinstance(clip, dict) else None
+        if not isinstance(clip, dict):
+            clip = {}
+        meta = clip.get("media_meta")
         duration_ms = meta.get("duration") if isinstance(meta, dict) else None
-        if not isinstance(duration_ms, int | float) or isinstance(duration_ms, bool):
-            return PlaybackResult(duration=0.0)  # unknown
-        return PlaybackResult(duration=max(float(duration_ms) / 1000, 0.0))
+        seconds = (
+            max(duration_ms / 1000, 0.0)
+            if isinstance(duration_ms, int | float) and not isinstance(duration_ms, bool)
+            else None
+        )
+        # Only how it plays: the answer also names what played before
+        _LOGGER.debug(
+            "PlayAlert %s: %s at volume %s, duration %s",
+            media_id,
+            clip.get("media_type"),
+            clip.get("volume"),
+            "not reported" if seconds is None else f"{seconds:g} s",
+        )
+        return PlaybackResult(duration=seconds or 0.0)
 
     async def stop(self) -> None:
         """Stop what the media player is playing."""
@@ -342,7 +354,7 @@ class WallDisplayClient:
     async def restart_app(self) -> None:
         """Restart the display app (not the whole device)."""
         result = await self.rpc("Sys.RestartApplication")
-        _LOGGER.debug("RestartApplication answered: %s", result)
+        _LOGGER.debug("Display app restarts after %s s", result.get("restarting_after"))
 
     async def get_motion_config(self) -> dict[str, Any]:
         """Return the motion sensor configuration.

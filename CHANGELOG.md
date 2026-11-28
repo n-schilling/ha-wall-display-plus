@@ -4,6 +4,16 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 
 ## [Unreleased]
 
+## [0.3.2] - 2026-11-28
+
+### Fixed
+
+- The debug log no longer names what played or where a clip came from: the line about playing a clip shows only its media type, the volume and the duration if the display reported one; a refused or failed download is logged with its reason only, without URL or host; restarting the display app logs only when it restarts.
+
+### Changed
+
+- The README states what is tested on the Wall Display X2i so far ([#9](https://github.com/n-schilling/ha-wall-display-plus/issues/9)): the announcement, the password, the screen settings and restarting the display app work; the switch "Motion wakes screen" is missing on purpose, and the CPU temperature stays unknown for now.
+
 ## [0.3.1] - 2026-11-27
 
 ### Added

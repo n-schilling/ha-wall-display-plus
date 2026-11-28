@@ -154,7 +154,7 @@ To keep the host from long work by mistake, texts are limited to 500 characters 
 |---|---|
 | Wall Display XL (SAWD-3A1XE10EU2), firmware 2.8.2, 2.8.4 and 2.8.5 | Supported and tested in daily use |
 | Wall Display (SAWD-0A1XX10EU1), firmware 2.8.5 | Supported. Tested: setup values, an announcement clip, the password. Not yet in daily use. It has no motion sensor, so the switch "Motion wakes screen" is missing. |
-| Wall Display X2i (SAWD-5A1XX10EU0) | **Experimental.** Not tested by the project, nobody here owns one. It has a speaker and the same firmware as the other two, so everything should work. It wakes the screen by a proximity sensor instead of a motion sensor; if the display offers no setting for it, the switch "Motion wakes screen" is missing. Please help: see [Testing a new model](#testing-a-new-model). |
+| Wall Display X2i (SAWD-5A1XX10EU0), firmware 2.8.5 | **Experimental.** Tested by a user: the test announcement, the password, the screen settings and restarting the display app. Not yet tested: text to speech from an automation and audio URLs. The CPU temperature stays unknown for now. It wakes the screen by a proximity sensor that cannot be set, so the switch "Motion wakes screen" is missing. See [Testing a new model](#testing-a-new-model). |
 | Other wall displays | Not offered and refused during setup |
 
 The firmware offers the same media interface on every wall display but does not report whether a speaker is built in, so the integration recognizes the supported displays by their model. Whether a display has a motion sensor is asked from the display. If you have another model with a speaker that should be supported, please open an [issue](https://github.com/n-schilling/ha-wall-display-plus/issues) with its model name.

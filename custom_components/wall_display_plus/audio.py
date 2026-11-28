@@ -244,7 +244,7 @@ class _PublicResolver(AbstractResolver):
     ) -> list[ResolveResult]:
         results = await self._resolver.resolve(host, port, family)
         if not results or not all(is_public(result["host"]) for result in results):
-            raise BlockedAddressError(f"{host} has an address that is not public")
+            raise BlockedAddressError("the host name has an address that is not public")
         return results
 
     async def close(self) -> None:
@@ -263,7 +263,7 @@ def _check_url(url: yarl.URL) -> None:
     except ValueError:
         return  # a host name
     if not public:
-        raise BlockedAddressError(f"{url.host} is not a public address")
+        raise BlockedAddressError("not a public address")
 
 
 @asynccontextmanager
@@ -285,7 +285,7 @@ async def _async_fetch_public(hass: HomeAssistant, url: str, *, cache: bool) -> 
         try:
             return await _async_fetch(session, url, cache=cache, check=_check_url)
         except BlockedAddressError as err:
-            _LOGGER.debug("Refused %s: %s", _without_query(url), err)
+            _LOGGER.debug("Refused a URL: %s", err)
             raise ServiceValidationError(
                 translation_domain=DOMAIN, translation_key="url_not_public"
             ) from err
@@ -326,7 +326,7 @@ async def _async_fetch(
     except BlockedAddressError:
         raise
     except (ClientError, TimeoutError, ValueError) as err:
-        _LOGGER.debug("Download of %s failed: %s", _without_query(url), _describe_fetch_error(err))
+        _LOGGER.debug("Download failed: %s", _describe_fetch_error(err))
         raise HomeAssistantError(translation_domain=DOMAIN, translation_key="fetch_failed") from err
     data = bytes(body)
     source = f"content:{hashlib.sha256(data).hexdigest()}" if cache else None
@@ -384,7 +384,11 @@ def _describe(err: Exception) -> str:
 
 
 def _describe_fetch_error(err: Exception) -> str:
-    """Describe a download error for the log; the URL's query (tokens) stays out."""
+    """Describe a download error for the log, without address or URL.
+
+    Connection errors name the host in their text, so only their kind is
+    written.
+    """
     if isinstance(err, ClientResponseError):
         return f"HTTP {err.status} {err.message}".strip()
-    return _describe(err)
+    return type(err).__name__

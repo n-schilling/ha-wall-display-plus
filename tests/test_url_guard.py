@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 from collections.abc import AsyncGenerator
+import logging
 import socket
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from aiohttp import web
+from aiohttp import ClientConnectionError, web
 from aiohttp.test_utils import TestServer
 import pytest
 from pytest_homeassistant.common import MockConfigEntry, MockUser
@@ -21,7 +22,7 @@ from homeassistant.components.media_player import (
 )
 from homeassistant.const import ATTR_ENTITY_ID
 from homeassistant.core import Context, HomeAssistant
-from homeassistant.exceptions import ServiceValidationError, Unauthorized
+from homeassistant.exceptions import HomeAssistantError, ServiceValidationError, Unauthorized
 from homeassistant.helpers import entity_registry as er
 
 from custom_components.wall_display_plus import audio
@@ -342,3 +343,31 @@ async def test_real_session_does_not_connect_to_a_local_name(
             hass, f"http://localhost:{local_server.port}/clip.mp3", cache=True
         )
     assert local_server.requests() == 0  # type: ignore[attr-defined]
+
+
+async def test_debug_log_names_no_address(
+    hass: HomeAssistant,
+    aioclient_mock: AiohttpClientMocker,
+    display: FakeDisplay,
+    setup_entry: MockConfigEntry,
+    local_server: TestServer,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Refused and failed downloads are logged without URL or host."""
+    caplog.set_level(logging.DEBUG, logger="custom_components.wall_display_plus.audio")
+    with pytest.raises(ServiceValidationError):
+        await _play(hass, "http://192.168.1.5/song.mp3")
+    with (
+        patch.object(audio, "_public_session", REAL_PUBLIC_SESSION),
+        pytest.raises(ServiceValidationError),
+    ):
+        await audio._async_fetch_public(
+            hass, f"http://localhost:{local_server.port}/a.mp3", cache=True
+        )
+    aioclient_mock.get(URL, exc=ClientConnectionError("Cannot connect to host example.com:443"))
+    with pytest.raises(HomeAssistantError):
+        await _play(hass, URL)
+    assert "Refused a URL: not a public address" in caplog.text
+    assert "Download failed: ClientConnectionError" in caplog.text
+    for secret in ("192.168.1.5", "song.mp3", "localhost", "example.com"):
+        assert secret not in caplog.text
